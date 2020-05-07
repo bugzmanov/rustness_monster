@@ -47,7 +47,7 @@ impl OpsCode {
 
     pub static ref OPSCODES_MAP: HashMap<u8, &'static OpsCode> = {
         let mut map = HashMap::new();
-
+        let ololo = AddressingMode::Indirect_Y;
         for cpuop in &*CPU_OPS_CODES {
             map.insert(cpuop.code, cpuop);
         }

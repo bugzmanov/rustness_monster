@@ -100,6 +100,7 @@ impl Memory {
 
 }
 
+#[derive(Debug)]
 pub enum AddressingMode {
     Immediate,
     ZeroPage,
@@ -117,65 +118,67 @@ impl AddressingMode {
     pub fn read_u8(&self, mem: &[u8], cpu: &CPU) -> u8 {
         let pos: u8 = mem[cpu.program_counter as usize];
         match self {
-            Immediate => pos,
-            ZeroPage => cpu.memory.read(pos as u16),
-            ZeroPage_X=> cpu.memory.read((pos + cpu.register_x) as u16),
-            ZeroPage_Y=> cpu.memory.read((pos + cpu.register_y) as u16),
-            Absolute => {
-                let mem_address = LittleEndian::read_u16(&mem[pos as usize..]);
+            AddressingMode::Immediate => pos,
+            AddressingMode::ZeroPage => cpu.memory.read(pos as u16),
+            AddressingMode::ZeroPage_X=> cpu.memory.read((pos + cpu.register_x) as u16),
+            AddressingMode::ZeroPage_Y=> cpu.memory.read((pos + cpu.register_y) as u16),
+            AddressingMode::Absolute => {
+                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]);
                 cpu.memory.read(mem_address)
             },
-            Absolute_X => {
-                let mem_address = LittleEndian::read_u16(&mem[pos as usize..]) + cpu.register_x as u16;
+            AddressingMode::Absolute_X => {
+                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]) + cpu.register_x as u16;
                 cpu.memory.read(mem_address)
             },
-            Absolute_Y => {
-                let mem_address = LittleEndian::read_u16(&mem[pos as usize..]) + cpu.register_y as u16;
+            AddressingMode::Absolute_Y => {
+                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]) + cpu.register_y as u16;
                 cpu.memory.read(mem_address)
             },
-            Indirect_X => {
+            AddressingMode::Indirect_X => {
                 let ptr: u8 = pos + cpu.register_x ; //todo overflow
                 let deref = cpu.memory.read_u16(ptr as u16);
                 cpu.memory.read(deref)
             },
-            Indirect_Y => {
+            AddressingMode::Indirect_Y => {
                 let deref = cpu.memory.read_u16(pos as u16) + cpu.register_y as u16;
                 cpu.memory.read(deref)
             },
-            None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
+            AddressingMode::None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
         }
     }  
 
     pub fn write_u8(&self, mem: &[u8], cpu: &mut CPU, data: u8) {
         let pos: u8 = mem[cpu.program_counter as usize];
-      
+        let ololo = AddressingMode::Indirect_X;
+        println!("{:?}",self);
+
         match self {
-            Immediate => panic!("Immidiate adressing mode only for reading"),
-            ZeroPage => cpu.memory.write(pos as u16, data),
-            ZeroPage_X=> cpu.memory.write((pos + cpu.register_x) as u16, data),
-            ZeroPage_Y=> cpu.memory.write((pos + cpu.register_y) as u16, data),
-            Absolute => {
-                let mem_address = LittleEndian::read_u16(&mem[pos as usize..]);
+            AddressingMode::Immediate => panic!("Immediate adressing mode only for reading"),
+            AddressingMode::ZeroPage => cpu.memory.write(pos as u16, data),
+            AddressingMode::ZeroPage_X=> cpu.memory.write((pos + cpu.register_x) as u16, data),
+            AddressingMode::ZeroPage_Y=> cpu.memory.write((pos + cpu.register_y) as u16, data),
+            AddressingMode::Absolute => {
+                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]);
                 cpu.memory.write(mem_address, data)
             },
-            Absolute_X => {
-                let mem_address = LittleEndian::read_u16(&mem[pos as usize..]) + cpu.register_x as u16;
+            AddressingMode::Absolute_X => {
+                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]) + cpu.register_x as u16;
                 cpu.memory.write(mem_address, data)
             },
-            Absolute_Y => {
-                let mem_address = LittleEndian::read_u16(&mem[pos as usize..]) + cpu.register_y as u16;
+            AddressingMode::Absolute_Y => {
+                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]) + cpu.register_y as u16;
                 cpu.memory.write(mem_address, data)
             },
-            Indirect_X => {
+            AddressingMode::Indirect_X => {
                 let ptr: u8 = pos + cpu.register_x ; //todo overflow
                 let deref = cpu.memory.read_u16(ptr as u16);
                 cpu.memory.write(deref, data)
             },
-            Indirect_Y => {
+            AddressingMode::Indirect_Y => {
                 let deref = cpu.memory.read_u16(pos as u16) + cpu.register_y as u16;
                 cpu.memory.write(deref, data)
             },
-            None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
+            AddressingMode::None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
         }
     }
 }
@@ -233,75 +236,29 @@ impl CPU {
         let begin = self.program_counter as usize;
         self.program_counter += 1;
         match program[begin] {
-            0x18 /*CLC*/ => {
+            /* CLC */ 0x18  => {
                 self.clear_carry_flag();
             }
-            0x38 /*SEC*/ => {
+            /* SEC */ 0x38  => {
                 self.set_carry_flag();
             }, 
 
-            0x48 /* PHA */ => {
+            /* PHA */ 0x48 => {
                 self.stack_push(self.register_a);
             },
-            0x68 /* PLA */ => {
+            /* PLA */ 0x68  => {
                 let data = self.stack_pop();
                 self.set_register_a(data);
             },
-            0x85 /*STA Zero Page*/ => {
-                let pos: u8 = program[begin +1];   
-                self.memory.write(pos as u16, self.register_a);
-                // self.program_counter += 1; 
+            /* STA */ 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91  => {
+                let ops = opscodes.get(&program[begin]).unwrap();
+                ops.mode.write_u8(&program[..], self, self.register_a);
 
             },
-            0x95 /*STA Zero Page,X*/ => {
-                let pos: u8 = program[begin +1] + self.register_x;    //todo overflow? 
-                self.memory.write(pos as u16, self.register_a);
-                // self.program_counter += 1; 
-            },
-            0x8d /*STA Absolute*/ => {
-                let pos = LittleEndian::read_u16(&program[(begin+1) as usize..]);
-                self.memory.write(pos, self.register_a);
-                // self.program_counter += 2
-            }, 
-            0x9d /*STA Absolute,X*/ => {
-                let pos = LittleEndian::read_u16(&program[(begin+1) as usize..]) + self.register_x as u16;
-                self.memory.write(pos, self.register_a);
-                // self.program_counter += 2
-            },
-            0x99 /*STA Absolute,Y*/ => {
-                let pos = LittleEndian::read_u16(&program[(begin+1) as usize..]) + self.register_y as u16;
-                self.memory.write(pos, self.register_a);
-                // self.program_counter += 2
-            },
-
-            0x81 /*STA (Indirect,X)*/ => {
-                let ptr: u8 = program[begin +1] + self.register_x ; //todo overflow
-
-                let deref = self.memory.read_u16(ptr as u16);
-                self.memory.write(deref, self.register_a);
-                // self.program_counter += 1
-            },
-            
-            0x91 /*STA (Indirect), Y*/ => {
-                let ptr: u8 = program[begin +1] ; //todo overflow
-
-                let deref = self.memory.read_u16(ptr as u16) + self.register_y as u16;
-                self.memory.write(deref, self.register_a);
-                // self.program_counter += 1
-            },
-
-            // 0xa9 /* LDA Immidiate */ => {
-            //     let data  = AddressingMode::Immediate.read_u8(&program[..], self);
-            //     self.set_register_a(data);
-            // },
-            0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 /* LDA */ => {
-                // let data  = AddressingMode::Immediate.read_u8(&program[..], self);
+            /* LDA */ 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1  => {
                 let ops = opscodes.get(&program[begin]).unwrap();
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_a(data);
-                // self.program_counter += 1;
-                // self.set_register_a(program[(begin + 1) as usize]);
-                // self.program_counter += 2
             },
             _ => { panic!("Unknown ops code") }
         }
