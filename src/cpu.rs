@@ -149,8 +149,6 @@ impl AddressingMode {
 
     pub fn write_u8(&self, mem: &[u8], cpu: &mut CPU, data: u8) {
         let pos: u8 = mem[cpu.program_counter as usize];
-        let ololo = AddressingMode::Indirect_X;
-        println!("{:?}",self);
 
         match self {
             AddressingMode::Immediate => panic!("Immediate adressing mode only for reading"),
@@ -255,7 +253,7 @@ impl CPU {
                 ops.mode.write_u8(&program[..], self, self.register_a);
 
             },
-            /* LDA */ 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1  => {
+            /* LDA */ 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1  => { //todo: tests
                 let ops = opscodes.get(&program[begin]).unwrap();
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_a(data);

@@ -41,13 +41,14 @@ impl OpsCode {
         OpsCode::new(0x99, "STA", 3, 5, AddressingMode::Absolute_Y), 
         OpsCode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X), 
         OpsCode::new(0x91, "STA", 2, 6, AddressingMode::Indirect_Y), 
+        
+        OpsCode::new(0x18, "CLC", 1, 2, AddressingMode::None_Addressing), 
 
 
     ];
 
     pub static ref OPSCODES_MAP: HashMap<u8, &'static OpsCode> = {
         let mut map = HashMap::new();
-        let ololo = AddressingMode::Indirect_Y;
         for cpuop in &*CPU_OPS_CODES {
             map.insert(cpuop.code, cpuop);
         }
