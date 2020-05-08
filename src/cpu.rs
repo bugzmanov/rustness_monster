@@ -196,6 +196,20 @@ impl CPU {
         hex::decode(s.replace(' ', "")).expect("Decoding failed")
     }
 
+    fn add_to_register_a(&mut self, data: u8) {
+        let sum = data.wrapping_add(self.register_a);
+        // if let None = data.checked_add(self.register_a) { //todo: why is this not working? 
+        if data >> 7 == 0 && self.register_a >> 7 == 0 && sum >> 7 == 1 ||
+           data >> 7 == 1 && self.register_a >> 7 == 1 && sum >> 7 == 0 {
+            self.flags.insert(CpuFlags::OVERFLOW);         
+        }
+
+        if (sum >> 7 ^ self.register_a >> 7 == 0b1) {
+            self.flags.insert(CpuFlags::CARRY);
+        }
+        self.set_register_a(sum);
+    }
+
     fn set_register_a(&mut self, data: u8) {
         self.register_a = data;
         if self.register_a == 0  {
@@ -248,6 +262,13 @@ impl CPU {
                 let data = self.stack_pop();
                 self.set_register_a(data);
             },
+
+            /* ADC */ 0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 |0x71 => {
+                let ops = opscodes.get(&program[begin]).unwrap();
+                let data = ops.mode.read_u8(&program[..], self);
+                self.add_to_register_a(data);
+            }
+
             /* STA */ 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91  => {
                 let ops = opscodes.get(&program[begin]).unwrap();
                 ops.mode.write_u8(&program[..], self, self.register_a);
@@ -440,4 +461,35 @@ mod test {
         assert_eq!(cpu.memory.read(0x0705 + 0x10), 0x66);
         assert_eq!(cpu.program_counter, 2);
     }
+
+    #[test]
+    fn test_0x69_adc() {
+        let mut cpu = CPU::new();    
+        cpu.register_a = 0x10;
+        cpu.interpret(CPU::transform("69 02"));
+        assert_eq!(cpu.register_a, 0x12);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_0x69_adc_carry_zero_flag() {
+        let mut cpu = CPU::new();    
+        cpu.register_a = 0x81;
+        cpu.interpret(CPU::transform("69 7f"));
+        assert_eq!(cpu.register_a, 0x0);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+        assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
+    }
+
+    #[test]
+    fn test_0x69_adc_overflow_cary_flag() {
+        let mut cpu = CPU::new();    
+        cpu.register_a = 0x8a;
+        cpu.interpret(CPU::transform("69 8a"));
+        assert_eq!(cpu.register_a, 0x14);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
+    }
+
 }

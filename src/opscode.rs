@@ -25,6 +25,15 @@ impl OpsCode {
 
  lazy_static! {
     pub static ref CPU_OPS_CODES: Vec<OpsCode> = vec![
+        OpsCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate), 
+        OpsCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage), 
+        OpsCode::new(0x75, "ADC", 2, 4, AddressingMode::ZeroPage_X), 
+        OpsCode::new(0x6d, "ADC", 3, 4, AddressingMode::Absolute), 
+        OpsCode::new(0x7d, "ADC", 3, 4/*+1 if page crossed*/, AddressingMode::Absolute_X), 
+        OpsCode::new(0x79, "ADC", 3, 4/*+1 if page crossed*/, AddressingMode::Absolute_Y), 
+        OpsCode::new(0x61, "ADC", 2, 6/*+1 if page crossed*/, AddressingMode::Indirect_X), 
+        OpsCode::new(0x71, "ADC", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y), 
+
         OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate), 
         OpsCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage), 
         OpsCode::new(0xb5, "LDA", 2, 4, AddressingMode::ZeroPage_X), 
@@ -59,5 +68,7 @@ impl OpsCode {
         // map.insert(0xbd, &CPU_OPS_CODES[4]);
         // map.insert(0xb9, &CPU_OPS_CODES[4]);
         map
+
+        
     };
  }
