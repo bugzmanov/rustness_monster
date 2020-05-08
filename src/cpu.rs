@@ -216,12 +216,16 @@ impl CPU {
 
     fn set_register_a(&mut self, data: u8) {
         self.register_a = data;
-        if self.register_a == 0  {
+        self._udpate_cpu_flags(self.register_a);
+    }
+
+    fn _udpate_cpu_flags(&mut self, last_operation: u8) {
+        if last_operation == 0  {
             self.flags.insert(CpuFlags::ZERO);  
         } else {
             self.flags.remove(CpuFlags::ZERO);
         }
-        if self.register_a >> 7 == 1 {
+        if last_operation >> 7 == 1 {
             self.flags.insert(CpuFlags::NEGATIV)
         } else {
             self.flags.remove(CpuFlags::NEGATIV)
@@ -278,6 +282,28 @@ impl CPU {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.and_with_register_a(data);
             }
+
+            /* ASL accumulator */ 0x0a => {
+                if self.register_a >> 7 == 1 {
+                    self.set_carry_flag();
+                } else {
+                    self.clear_carry_flag();
+                }
+                self.set_register_a(self.register_a << 1)
+            },
+
+            /* ASL Memory */ 0x06 | 0x16 | 0x0e | 0x1e => {
+                let ops = opscodes.get(&program[begin]).unwrap();
+                let mut data = ops.mode.read_u8(&program[..], self);
+                if data >> 7 == 1 {
+                    self.set_carry_flag();
+                } else {
+                    self.clear_carry_flag();
+                }
+                data = data << 1;
+                ops.mode.write_u8(&program[..], self, data);
+                self._udpate_cpu_flags(data)
+            },
 
             /* STA */ 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91  => {
                 let ops = opscodes.get(&program[begin]).unwrap();
@@ -510,6 +536,37 @@ mod test {
         assert_eq!(cpu.register_a, 0b10010000);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_0x0a_asl_accumulator() {
+        let mut cpu = CPU::new();    
+        cpu.register_a = 0b11010010;
+        cpu.interpret(CPU::transform("0a"));
+        assert_eq!(cpu.program_counter, 1);
+        assert_eq!(cpu.register_a, 0b10100100);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_0x06_as_memory() {
+        let mut cpu = CPU::new();    
+        cpu.memory.write(0x10, 0b01000001);
+        cpu.interpret(CPU::transform("06 10"));
+        assert_eq!(cpu.memory.read(0x10), 0b10000010);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+    }
+
+    #[test]
+    fn test_0x06_as_memory_flags() {
+        let mut cpu = CPU::new();    
+        cpu.memory.write(0x10, 0b10000000);
+        cpu.interpret(CPU::transform("06 10"));
+        assert_eq!(cpu.memory.read(0x10), 0b0);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+
     }
 
 }

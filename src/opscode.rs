@@ -43,6 +43,12 @@ impl OpsCode {
         OpsCode::new(0x21, "AND", 2, 6/*+1 if page crossed*/, AddressingMode::Indirect_X), 
         OpsCode::new(0x31, "AND", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y), 
 
+        OpsCode::new(0x0a, "ASL", 1, 2, AddressingMode::None_Addressing), 
+        OpsCode::new(0x06, "ASL", 2, 5, AddressingMode::ZeroPage), 
+        OpsCode::new(0x16, "ASL", 2, 5, AddressingMode::ZeroPage_X), 
+        OpsCode::new(0x0e, "ASL", 3, 6, AddressingMode::Absolute), 
+        OpsCode::new(0x1e, "ASL", 3, 7, AddressingMode::Absolute_X), 
+        
 
         OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate), 
         OpsCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage), 
