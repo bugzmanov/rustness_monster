@@ -269,6 +269,7 @@ impl CPU {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode>  = *opscode::OPSCODES_MAP;
 
         let begin = self.program_counter as usize;
+        let ops = opscodes.get(&program[begin]).unwrap();
         self.program_counter += 1;
         match program[begin] {
             /* CLC */ 0x18  => {
@@ -287,28 +288,16 @@ impl CPU {
             },
 
             /* ADC */ 0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
-                let ops = opscodes.get(&program[begin]).unwrap();
                 let data = ops.mode.read_u8(&program[..], self);
                 self.add_to_register_a(data);
             },
 
             /* AND */ 0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
-                let ops = opscodes.get(&program[begin]).unwrap();
                 let data = ops.mode.read_u8(&program[..], self);
                 self.and_with_register_a(data);
             }
 
-            // /* ASL accumulator */ 0x0a => {
-            //     if self.register_a >> 7 == 1 {
-            //         self.set_carry_flag();
-            //     } else {
-            //         self.clear_carry_flag();
-            //     }
-            //     self.set_register_a(self.register_a << 1)
-            // },
-
             /* ASL Memory */ 0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
-                let ops = opscodes.get(&program[begin]).unwrap();
                 let mut data = ops.mode.read_u8(&program[..], self);
                 if data >> 7 == 1 {
                     self.set_carry_flag();
@@ -320,25 +309,26 @@ impl CPU {
                 self._udpate_cpu_flags(data)
             },
 
+            /* INC */ 0xe6 | 0xf6 | 0xee | 0xfe => {
+                let mut data = ops.mode.read_u8(&program[..], self);
+                data = data.wrapping_add(1);
+                ops.mode.write_u8(&program[..], self, data);
+                self._udpate_cpu_flags(data);
+            },
+
             /* STA */ 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91  => {
-                let ops = opscodes.get(&program[begin]).unwrap();
                 ops.mode.write_u8(&program[..], self, self.register_a);
 
             },
             /* LDA */ 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1  => { //todo: tests
-                let ops = opscodes.get(&program[begin]).unwrap();
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_a(data);
             },
             _ => { panic!("Unknown ops code") }
         }
-        // &HashMap<u8, &'static opscode::OpsCode>*/
-        if let Some(&ops) = opscodes.get(&program[begin]) {
-            self.program_counter += (ops.len - 1) as u16;
+
+        self.program_counter += (ops.len - 1) as u16;
             //todo: cycles
-        } else {
-            //todo: panic
-        }
         
         if (self.program_counter as usize) < program.len() {
             self.interpret(program)
@@ -581,6 +571,16 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+    }
+
+    #[test]
+    fn test_0xf6_inc_memory_zero_page_x() {
+        let mut cpu = CPU::new();   
+        cpu.register_x = 1; 
+        cpu.memory.write(0x10, 127);
+        cpu.interpret(CPU::transform("f6 0f"));
+        assert_eq!(cpu.memory.read(0x10), 128);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
 
 }
