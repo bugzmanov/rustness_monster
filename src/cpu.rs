@@ -103,6 +103,7 @@ impl Memory {
 #[derive(Debug)]
 pub enum AddressingMode {
     Immediate,
+    Accumulator,
     ZeroPage,
     ZeroPage_X,
     ZeroPage_Y,
@@ -116,6 +117,10 @@ pub enum AddressingMode {
 
 impl AddressingMode {
     pub fn read_u8(&self, mem: &[u8], cpu: &CPU) -> u8 {
+        if let AddressingMode::Accumulator = self {
+            return cpu.register_a;
+        }
+
         let pos: u8 = mem[cpu.program_counter as usize];
         match self {
             AddressingMode::Immediate => pos,
@@ -143,11 +148,17 @@ impl AddressingMode {
                 let deref = cpu.memory.read_u16(pos as u16) + cpu.register_y as u16;
                 cpu.memory.read(deref)
             },
+            AddressingMode::Accumulator => panic!("should not reach this code"),
             AddressingMode::None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
         }
     }  
 
     pub fn write_u8(&self, mem: &[u8], cpu: &mut CPU, data: u8) {
+        if let AddressingMode::Accumulator = self {
+            cpu.set_register_a(data);
+            return;
+        }
+
         let pos: u8 = mem[cpu.program_counter as usize];
 
         match self {
@@ -176,6 +187,10 @@ impl AddressingMode {
                 let deref = cpu.memory.read_u16(pos as u16) + cpu.register_y as u16;
                 cpu.memory.write(deref, data)
             },
+            AddressingMode::Accumulator => {
+                panic!("shouldn't be here");
+                // cpu.set_register_a(data)
+            }
             AddressingMode::None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
         }
     }
@@ -283,16 +298,16 @@ impl CPU {
                 self.and_with_register_a(data);
             }
 
-            /* ASL accumulator */ 0x0a => {
-                if self.register_a >> 7 == 1 {
-                    self.set_carry_flag();
-                } else {
-                    self.clear_carry_flag();
-                }
-                self.set_register_a(self.register_a << 1)
-            },
+            // /* ASL accumulator */ 0x0a => {
+            //     if self.register_a >> 7 == 1 {
+            //         self.set_carry_flag();
+            //     } else {
+            //         self.clear_carry_flag();
+            //     }
+            //     self.set_register_a(self.register_a << 1)
+            // },
 
-            /* ASL Memory */ 0x06 | 0x16 | 0x0e | 0x1e => {
+            /* ASL Memory */ 0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
                 let ops = opscodes.get(&program[begin]).unwrap();
                 let mut data = ops.mode.read_u8(&program[..], self);
                 if data >> 7 == 1 {
@@ -566,7 +581,6 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
-
     }
 
 }
