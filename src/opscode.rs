@@ -34,6 +34,16 @@ impl OpsCode {
         OpsCode::new(0x61, "ADC", 2, 6/*+1 if page crossed*/, AddressingMode::Indirect_X), 
         OpsCode::new(0x71, "ADC", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y), 
 
+        OpsCode::new(0x29, "AND", 2, 2, AddressingMode::Immediate), 
+        OpsCode::new(0x25, "AND", 2, 3, AddressingMode::ZeroPage), 
+        OpsCode::new(0x35, "AND", 2, 4, AddressingMode::ZeroPage_X), 
+        OpsCode::new(0x2d, "AND", 3, 4, AddressingMode::Absolute), 
+        OpsCode::new(0x3d, "AND", 3, 4/*+1 if page crossed*/, AddressingMode::Absolute_X), 
+        OpsCode::new(0x39, "AND", 3, 4/*+1 if page crossed*/, AddressingMode::Absolute_Y), 
+        OpsCode::new(0x21, "AND", 2, 6/*+1 if page crossed*/, AddressingMode::Indirect_X), 
+        OpsCode::new(0x31, "AND", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y), 
+
+
         OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate), 
         OpsCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage), 
         OpsCode::new(0xb5, "LDA", 2, 4, AddressingMode::ZeroPage_X), 

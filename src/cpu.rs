@@ -210,6 +210,10 @@ impl CPU {
         self.set_register_a(sum);
     }
 
+    fn and_with_register_a(&mut self, data: u8) {
+        self.set_register_a(data & self.register_a);
+    }
+
     fn set_register_a(&mut self, data: u8) {
         self.register_a = data;
         if self.register_a == 0  {
@@ -217,7 +221,7 @@ impl CPU {
         } else {
             self.flags.remove(CpuFlags::ZERO);
         }
-        if self.register_a | 0b10000000 == 1 {
+        if self.register_a >> 7 == 1 {
             self.flags.insert(CpuFlags::NEGATIV)
         } else {
             self.flags.remove(CpuFlags::NEGATIV)
@@ -263,10 +267,16 @@ impl CPU {
                 self.set_register_a(data);
             },
 
-            /* ADC */ 0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 |0x71 => {
+            /* ADC */ 0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
                 let ops = opscodes.get(&program[begin]).unwrap();
                 let data = ops.mode.read_u8(&program[..], self);
                 self.add_to_register_a(data);
+            },
+
+            /* AND */ 0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
+                let ops = opscodes.get(&program[begin]).unwrap();
+                let data = ops.mode.read_u8(&program[..], self);
+                self.and_with_register_a(data);
             }
 
             /* STA */ 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91  => {
@@ -490,6 +500,16 @@ mod test {
         assert_eq!(cpu.register_a, 0x14);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
+    }
+
+    #[test]
+    fn test_0x29_and_flags() {
+        let mut cpu = CPU::new();    
+        cpu.register_a = 0b11010010;
+        cpu.interpret(CPU::transform("29 90")); //0b10010000
+        assert_eq!(cpu.register_a, 0b10010000);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
     }
 
 }
