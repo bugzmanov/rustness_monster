@@ -468,9 +468,9 @@ impl CPU {
                 let indirect_ref = self.memory.read_u16(mem_address);
                 self.program_counter = indirect_ref;
                 //todo: 6502 bug mode with with page boundary:
-                //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50, 
-                // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended 
-                // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000 
+                //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
+                // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended
+                // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000
             }
 
             /* STA */
@@ -510,12 +510,47 @@ impl CPU {
             }
 
             /* NOP */
-            0xea  =>  {
+            0xea => {
                 //do nothing
             }
+
+            /* TAX */
+            0xaa => {
+                self.register_x = self.register_a;
+                self._udpate_cpu_flags(self.register_x);
+            }
+
+            /* TAY */
+            0xa8 => {
+                self.register_y = self.register_a;
+                self._udpate_cpu_flags(self.register_y);
+            }
+
+            /* TSX */
+            0xba => {
+                self.register_x = self.stack_pointer;
+                self._udpate_cpu_flags(self.register_x);
+            }
+
+            /* TXA */
+            0x8a => {
+                self.register_a = self.register_x;
+                self._udpate_cpu_flags(self.register_a);
+            }
+
+            /* TXS */
+            0x9a => {
+                self.stack_pointer = self.register_x;
+            }
+
+            /* TYA */
+            0x98 => {
+                self.register_a = self.register_y;
+                self._udpate_cpu_flags(self.register_a);
+            }
+
             _ => panic!("Unknown ops code"),
         }
-
 
         // todo: find more elegant way
         if program_counter_state == self.program_counter {
@@ -919,11 +954,60 @@ mod test {
         cpu.register_a = 3;
 
         cpu.interpret(CPU::transform("ea"));
-        assert_eq!(cpu.program_counter, 1);  
-        assert_eq!(cpu.register_y, 1);  
-        assert_eq!(cpu.register_x, 2);  
-        assert_eq!(cpu.register_a, 3);  
-        assert_eq!(cpu.register_a, 3);  
-        assert_eq!(cpu.flags, flags);  
+        assert_eq!(cpu.program_counter, 1);
+        assert_eq!(cpu.register_y, 1);
+        assert_eq!(cpu.register_x, 2);
+        assert_eq!(cpu.register_a, 3);
+        assert_eq!(cpu.register_a, 3);
+        assert_eq!(cpu.flags, flags);
+    }
+
+    #[test]
+    fn test_0xaa_tax() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 66;
+        cpu.interpret(CPU::transform("aa"));
+        assert_eq!(cpu.register_x, 66);
+    }
+
+    #[test]
+    fn test_0xa8_tay() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 66;
+        cpu.interpret(CPU::transform("a8"));
+        assert_eq!(cpu.register_y, 66);
+    }
+
+    #[test]
+    fn test_0xba_tsx() {
+        let mut cpu = CPU::new();
+        cpu.interpret(CPU::transform("ba"));
+        assert_eq!(cpu.register_x, 0xff);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+    }
+
+    #[test]
+    fn test_0x8a_txa() {
+        let mut cpu = CPU::new();
+        cpu.register_x = 66;
+        cpu.interpret(CPU::transform("8a"));
+        assert_eq!(cpu.register_a, 66);
+    }
+
+    #[test]
+    fn test_0x9a_txs() {
+        let mut cpu = CPU::new();
+        cpu.register_x = 0;
+        cpu.interpret(CPU::transform("9a"));
+        assert_eq!(cpu.stack_pointer, 0);
+        assert!(!cpu.flags.contains(CpuFlags::ZERO)); // should not affect flags
+    }
+
+    #[test]
+    fn test_0x98_tya() {
+        let mut cpu = CPU::new();
+        cpu.register_y = 66;
+        cpu.interpret(CPU::transform("98"));
+        assert_eq!(cpu.register_a, 66);
     }
 }

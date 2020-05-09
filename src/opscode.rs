@@ -99,10 +99,10 @@ lazy_static! {
        OpsCode::new(0xca, "DEX", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0x88, "DEY", 1, 2, AddressingMode::NoneAddressing),
 
-       OpsCode::new(0x4c, "JMP", 3, 3, AddressingMode::NoneAddressing), //AddressingMode that acts as Immidiate 
+       OpsCode::new(0x4c, "JMP", 3, 3, AddressingMode::NoneAddressing), //AddressingMode that acts as Immidiate
        OpsCode::new(0x6c, "JMP", 3, 5, AddressingMode::NoneAddressing), //AddressingMode:Indirect with 6502 bug
 
-       OpsCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing), 
+       OpsCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing),
 
        OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
        OpsCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage),
@@ -145,6 +145,13 @@ lazy_static! {
 
        OpsCode::new(0x18, "CLC", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0x38, "SEC", 1, 2, AddressingMode::NoneAddressing),
+
+       OpsCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing),
+       OpsCode::new(0xa8, "TAY", 1, 2, AddressingMode::NoneAddressing),
+       OpsCode::new(0xba, "TSX", 1, 2, AddressingMode::NoneAddressing),
+       OpsCode::new(0x8a, "TXA", 1, 2, AddressingMode::NoneAddressing),
+       OpsCode::new(0x9a, "TXS", 1, 2, AddressingMode::NoneAddressing),
+       OpsCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
 
 
        OpsCode::new(0x48, "PHA", 1, 3, AddressingMode::NoneAddressing),
