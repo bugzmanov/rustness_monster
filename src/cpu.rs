@@ -362,6 +362,12 @@ impl CPU {
                 return;
             }
 
+            /* CLD */ 0xd8 => self.flags.remove(CpuFlags::DECIMAL_MODE),
+
+            /* CLI */ 0x58 => self.flags.remove(CpuFlags::INTERRUPT_DISABLE),
+
+            /* CLV */ 0xb8 => self.flags.remove(CpuFlags::OVERFLOW),
+
             /* CLC */ 0x18 => {
                 self.clear_carry_flag();
             }
