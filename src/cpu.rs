@@ -249,6 +249,16 @@ impl CPU {
         self._udpate_cpu_flags(self.register_a);
     }
 
+    fn set_register_x(&mut self, data: u8) {
+        self.register_x = data;
+        self._udpate_cpu_flags(self.register_x);
+    }
+
+    fn set_register_y(&mut self, data: u8) {
+        self.register_y = data;
+        self._udpate_cpu_flags(self.register_y);
+    }
+
     fn _udpate_cpu_flags(&mut self, last_operation: u8) {
         if last_operation == 0 {
             self.flags.insert(CpuFlags::ZERO);
@@ -412,6 +422,19 @@ impl CPU {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_a(data);
             }
+
+            /* LDX */
+            0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe => {
+                let data = ops.mode.read_u8(&program[..], self);
+                self.set_register_x(data);
+            }
+
+            0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
+                //todo: tests
+                let data = ops.mode.read_u8(&program[..], self);
+                self.set_register_y(data);
+            }
+
             _ => panic!("Unknown ops code"),
         }
 
@@ -545,7 +568,7 @@ mod test {
     }
 
     #[test]
-    fn test_0x9d_sta() {
+    fn test_0x9d_sta_absolute_x() {
         let mut cpu = CPU::new();
         cpu.register_a = 101;
         cpu.register_x = 0x50;
@@ -555,7 +578,7 @@ mod test {
     }
 
     #[test]
-    fn test_0x99_sta() {
+    fn test_0x99_sta_absolute_y() {
         let mut cpu = CPU::new();
         cpu.register_a = 101;
         cpu.register_y = 0x66;
@@ -749,5 +772,23 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert_eq!(cpu.register_a, 0);
+    }
+
+    #[test]
+    fn test_0xbe_ldx_absolute_y() {
+        let mut cpu = CPU::new();
+        cpu.memory.write(0x1166, 55);
+        cpu.register_y = 0x66;
+        cpu.interpret(CPU::transform("be 00 11"));
+        assert_eq!(cpu.register_x, 55);
+    }
+
+    #[test]
+    fn test_0xb4_ldy_zero_page_x() {
+        let mut cpu = CPU::new();
+        cpu.memory.write(0x66, 55);
+        cpu.register_x = 0x06;
+        cpu.interpret(CPU::transform("b4 60"));
+        assert_eq!(cpu.register_y, 55);
     }
 }
