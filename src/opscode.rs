@@ -59,6 +59,12 @@ lazy_static! {
        OpsCode::new(0x2e, "ROL", 3, 6, AddressingMode::Absolute),
        OpsCode::new(0x3e, "ROL", 3, 7, AddressingMode::Absolute_X),
 
+       OpsCode::new(0x6a, "ROR", 1, 2, AddressingMode::Accumulator),
+       OpsCode::new(0x66, "ROR", 2, 5, AddressingMode::ZeroPage),
+       OpsCode::new(0x76, "ROR", 2, 6, AddressingMode::ZeroPage_X),
+       OpsCode::new(0x6e, "ROR", 3, 6, AddressingMode::Absolute),
+       OpsCode::new(0x7e, "ROR", 3, 7, AddressingMode::Absolute_X),
+
        OpsCode::new(0xe6, "INC", 2, 5, AddressingMode::ZeroPage),
        OpsCode::new(0xf6, "INC", 2, 6, AddressingMode::ZeroPage_X),
        OpsCode::new(0xee, "INC", 3, 6, AddressingMode::Absolute),
