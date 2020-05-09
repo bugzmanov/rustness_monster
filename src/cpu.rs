@@ -106,6 +106,7 @@ pub enum AddressingMode {
     Absolute,
     Absolute_X,
     Absolute_Y,
+    // Indirect,
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
@@ -137,6 +138,7 @@ impl AddressingMode {
                     + cpu.register_y as u16;
                 cpu.memory.read(mem_address)
             }
+
             AddressingMode::Indirect_X => {
                 let ptr: u8 = pos + cpu.register_x; //todo overflow
                 let deref = cpu.memory.read_u16(ptr as u16);
@@ -305,6 +307,9 @@ impl CPU {
         let begin = self.program_counter as usize;
         let ops = opscodes.get(&program[begin]).unwrap();
         self.program_counter += 1;
+
+        let program_counter_state = self.program_counter;
+
         match program[begin] {
             /* CLC */ 0x18 => {
                 self.clear_carry_flag();
@@ -451,6 +456,23 @@ impl CPU {
                 self._udpate_cpu_flags(self.register_y);
             }
 
+            /* JMP Absolute */
+            0x4c => {
+                let mem_address = LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                self.program_counter = mem_address;
+            }
+
+            /* JMP Indirect */
+            0x6c => {
+                let mem_address = LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                let indirect_ref = self.memory.read_u16(mem_address);
+                self.program_counter = indirect_ref;
+                //todo: 6502 bug mode with with page boundary:
+                //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50, 
+                // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended 
+                // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000 
+            }
+
             /* STA */
             0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                 ops.mode.write_u8(&program[..], self, self.register_a);
@@ -490,7 +512,11 @@ impl CPU {
             _ => panic!("Unknown ops code"),
         }
 
-        self.program_counter += (ops.len - 1) as u16;
+
+        // todo: find more elegant way
+        if program_counter_state == self.program_counter {
+            self.program_counter += (ops.len - 1) as u16;
+        }
         //todo: cycles
 
         if (self.program_counter as usize) < program.len() {
@@ -860,5 +886,21 @@ mod test {
         cpu.interpret(CPU::transform("e8"));
         assert_eq!(cpu.register_x, 0);
         assert!(cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_0x6c_jmp_indirect() {
+        let mut cpu = CPU::new();
+        cpu.memory.write(0x0120, 0xfc);
+        cpu.memory.write(0x0121, 0xba);
+        cpu.interpret(CPU::transform("6c 20 01"));
+        assert_eq!(cpu.program_counter, 0xbafc);
+    }
+
+    #[test]
+    fn test_0x4c_jmp_absolute() {
+        let mut cpu = CPU::new();
+        cpu.interpret(CPU::transform("4c 34 12"));
+        assert_eq!(cpu.program_counter, 0x1234);
     }
 }
