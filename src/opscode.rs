@@ -153,6 +153,8 @@ lazy_static! {
        OpsCode::new(0x9a, "TXS", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
 
+       OpsCode::new(0x78, "SEI", 1, 2, AddressingMode::NoneAddressing),
+
 
        OpsCode::new(0x48, "PHA", 1, 3, AddressingMode::NoneAddressing),
        OpsCode::new(0x68, "PLA", 1, 4, AddressingMode::NoneAddressing),

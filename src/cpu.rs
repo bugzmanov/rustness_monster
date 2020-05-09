@@ -549,6 +549,11 @@ impl CPU {
                 self._udpate_cpu_flags(self.register_a);
             }
 
+            /* SEI */
+            0x78 => {
+                self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
+            }
+            
             _ => panic!("Unknown ops code"),
         }
 
