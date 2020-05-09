@@ -381,12 +381,22 @@ impl CPU {
                 self.set_register_a(data);
             }
 
+            /* PHP */ 0x08 => {
+                self.stack_push(self.flags.bits);
+            }
+
+            /* PLP */
+            0x28 => {
+                self.flags.bits = self.stack_pop();
+            }
+
             /* ADC */
             0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.add_to_register_a(data);
             }
 
+            /* SBC */
             0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.sub_from_register_a(data);
@@ -542,6 +552,12 @@ impl CPU {
             /* RTS */
             0x60 => {
                 self.program_counter = self.stack_pop_u16() + 1;
+            }
+
+            /* RTI */
+            0x40 => {
+                self.flags.bits = self.stack_pop();
+                self.program_counter = self.stack_pop_u16();
             }
 
             /* STA */
@@ -1141,5 +1157,21 @@ mod test {
         assert_eq!(cpu.program_counter, 0x04);
         assert_eq!(cpu.stack_pointer, 0xff);
         assert_eq!(cpu.register_x, 0x5);
+    }
+
+    #[test]
+    fn test_0x40_rti() {
+        let mut cpu = CPU::new();
+        cpu.flags.bits = 0b11000001;
+        cpu.program_counter = 0x100;
+        cpu.stack_push_u16(cpu.program_counter);
+        cpu.stack_push(cpu.flags.bits);
+
+        cpu.flags.bits = 0;
+        cpu.program_counter = 0;
+        cpu.interpret(CPU::transform("40"));
+
+        assert_eq!(cpu.flags.bits, 0b11000001);
+        assert_eq!(cpu.program_counter, 0x100);
     }
 }

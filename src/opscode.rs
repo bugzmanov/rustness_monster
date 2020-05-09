@@ -116,6 +116,8 @@ lazy_static! {
        OpsCode::new(0x20, "JSR", 3, 6, AddressingMode::NoneAddressing),
        OpsCode::new(0x60, "RTS", 1, 6, AddressingMode::NoneAddressing),
 
+       OpsCode::new(0x40, "RTI", 1, 6, AddressingMode::NoneAddressing),
+
        OpsCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing),
 
        OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
@@ -174,6 +176,8 @@ lazy_static! {
 
        OpsCode::new(0x48, "PHA", 1, 3, AddressingMode::NoneAddressing),
        OpsCode::new(0x68, "PLA", 1, 4, AddressingMode::NoneAddressing),
+       OpsCode::new(0x08, "PHP", 1, 3, AddressingMode::NoneAddressing),
+       OpsCode::new(0x28, "PLP", 1, 4, AddressingMode::NoneAddressing),
 
 
 
