@@ -247,6 +247,10 @@ impl CPU {
         } else {
             self.flags.remove(CpuFlags::ZERO);
         }
+        self._update_negative_flag(last_operation);
+    }
+
+    fn _update_negative_flag(&mut self, last_operation: u8) {
         if last_operation >> 7 == 1 {
             self.flags.insert(CpuFlags::NEGATIV)
         } else {
@@ -350,7 +354,7 @@ impl CPU {
                     data = data | 1;
                 }
                 ops.mode.write_u8(&program[..], self, data);
-                self._udpate_cpu_flags(data)
+                self._update_negative_flag(data)
             },
 
             /* ROR */
@@ -368,7 +372,7 @@ impl CPU {
                     data = data | 0b10000000;
                 }
                 ops.mode.write_u8(&program[..], self, data);
-                self._udpate_cpu_flags(data)
+                self._update_negative_flag(data)
             },
 
             /* INC */
@@ -687,5 +691,24 @@ mod test {
         cpu.interpret(CPU::transform("6e 10 15"));
         assert_eq!(cpu.memory.read(0x1510), 0b10100001);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_0x6e_zero_flag() {
+        let mut cpu = CPU::new();
+        cpu.flags.insert(CpuFlags::CARRY);
+        cpu.memory.write(0x1510, 0b00000001);
+        cpu.interpret(CPU::transform("6e 10 15"));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_0x6a_ror_accumulator_zero_falg() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 1;
+        cpu.interpret(CPU::transform("6a"));
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+        assert_eq!(cpu.register_a, 0);
     }
 }
