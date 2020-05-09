@@ -232,8 +232,16 @@ impl CPU {
         self.set_register_a(sum);
     }
 
-    fn and_with_register_a(&mut self, data: u8) {
+    fn and_with_register_a(&mut self, data: u8) { //todo remove this
         self.set_register_a(data & self.register_a);
+    }
+
+    fn xor_with_register_a(&mut self, data: u8) { //todo remove this
+        self.set_register_a(data ^ self.register_a);
+    }
+    
+    fn or_with_register_a(&mut self, data: u8) { //todo remove this
+        self.set_register_a(data | self.register_a);
     }
 
     fn set_register_a(&mut self, data: u8) {
@@ -299,19 +307,30 @@ impl CPU {
             0x68 => {
                 let data = self.stack_pop();
                 self.set_register_a(data);
-            }
+            },
 
             /* ADC */
             0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.add_to_register_a(data);
-            }
+            },
 
             /* AND */
             0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.and_with_register_a(data);
-            }
+            },
+
+            /* EOR */
+            0x49| 0x45| 0x55| 0x4d| 0x5d| 0x59| 0x41| 0x51 => {
+                let data = ops.mode.read_u8(&program[..], self);
+                self.xor_with_register_a(data);
+            },
+
+            0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
+                let data = ops.mode.read_u8(&program[..], self);
+                self.or_with_register_a(data);
+            },
 
             /* LSR */
             0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
@@ -609,6 +628,26 @@ mod test {
         cpu.register_a = 0b11010010;
         cpu.interpret(CPU::transform("29 90")); //0b10010000
         assert_eq!(cpu.register_a, 0b10010000);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_0x49_eor_flags() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0b11010010;
+        cpu.interpret(CPU::transform("49 07")); //0b00000111
+        assert_eq!(cpu.register_a, 0b11010101);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_0x09_ora_flags() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0b11010010;
+        cpu.interpret(CPU::transform("09 07")); //0b00000111
+        assert_eq!(cpu.register_a, 0b11010111);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
     }
