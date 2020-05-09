@@ -71,6 +71,8 @@ trait Mem {
     const IO_MIRRORS: u16 = 0x2008;
 
     fn write(&mut self, pos: u16, data: u8);
+    fn write_u16(&mut self, pos: u16, data: u16);
+
     fn read(&self, pos: u16) -> u8;
     fn read_u16(&self, pos: u16) -> u16;
 }
@@ -86,6 +88,10 @@ impl Mem for Memory {
 
     fn read_u16(&self, pos: u16) -> u16 {
         LittleEndian::read_u16(&self.space[pos as usize..])
+    }
+
+    fn write_u16(&mut self, pos: u16, data: u16) {
+        LittleEndian::write_u16(&mut self.space[pos as usize..], data)
     }
 }
 
@@ -220,7 +226,13 @@ impl CPU {
     /// note: ignoring decimal mode
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
     fn add_to_register_a(&mut self, data: u8) {
-        let sum = self.register_a as u16 + data as u16 + (if self.flags.contains(CpuFlags::CARRY) {1} else {0}) as u16;
+        let sum = self.register_a as u16
+            + data as u16
+            + (if self.flags.contains(CpuFlags::CARRY) {
+                1
+            } else {
+                0
+            }) as u16;
 
         let carry = sum > 0xff;
 
@@ -230,7 +242,7 @@ impl CPU {
             self.flags.remove(CpuFlags::CARRY);
         }
 
-        let result = sum as u8; 
+        let result = sum as u8;
 
         if (data ^ result) & (result ^ self.register_a) & 0x80 != 0 {
             self.flags.insert(CpuFlags::OVERFLOW);
@@ -243,7 +255,7 @@ impl CPU {
 
     /// note: ignoring decimal mode
     fn sub_from_register_a(&mut self, data: u8) {
-        self.add_to_register_a((-(data as i8) -1) as u8);
+        self.add_to_register_a((-(data as i8) - 1) as u8);
     }
 
     fn and_with_register_a(&mut self, data: u8) {
@@ -313,6 +325,18 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
+    fn stack_push_u16(&mut self, data: u16) {
+        self.memory
+            .write_u16((Memory::STACK as u16) + self.stack_pointer as u16, data);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(2);
+    }
+
+    fn stack_pop_u16(&mut self) -> u16 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(2);
+        self.memory
+            .read_u16((Memory::STACK as u16) + self.stack_pointer as u16)
+    }
+
     pub fn interpret(&mut self, program: Vec<u8>) {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
 
@@ -323,6 +347,12 @@ impl CPU {
         let program_counter_state = self.program_counter;
 
         match program[begin] {
+            /* BRK */
+            0x00 => {
+                self.flags.insert(CpuFlags::BREAK);
+                return;
+            }
+
             /* CLC */ 0x18 => {
                 self.clear_carry_flag();
             }
@@ -360,7 +390,7 @@ impl CPU {
             0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.sub_from_register_a(data);
-            },
+            }
 
             /* AND */
             0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
@@ -374,6 +404,7 @@ impl CPU {
                 self.xor_with_register_a(data);
             }
 
+            /* ORA */
             0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.or_with_register_a(data);
@@ -498,6 +529,19 @@ impl CPU {
                 //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
                 // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended
                 // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000
+            }
+
+            /* JSR */
+            0x20 => {
+                self.stack_push_u16(self.program_counter + 2 - 1);
+                let target_address =
+                    LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                self.program_counter = target_address
+            }
+
+            /* RTS */
+            0x60 => {
+                self.program_counter = self.stack_pop_u16() + 1;
             }
 
             /* STA */
@@ -789,7 +833,6 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
     }
 
-
     #[test]
     fn test_0xe9_sbc() {
         let mut cpu = CPU::new();
@@ -822,7 +865,6 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
     }
-
 
     #[test]
     fn test_0x29_and_flags() {
@@ -1071,5 +1113,33 @@ mod test {
         cpu.register_y = 66;
         cpu.interpret(CPU::transform("98"));
         assert_eq!(cpu.register_a, 66);
+    }
+
+    #[test]
+    fn test_0x20_jsr() {
+        let mut cpu = CPU::new();
+        let pc = cpu.program_counter;
+        cpu.interpret(CPU::transform("20 04 06"));
+        assert_eq!(cpu.program_counter, 0x604);
+        assert_eq!(cpu.stack_pointer, 0xff - 0x2);
+        let return_pos = cpu.stack_pop_u16();
+        assert_eq!(pc + 3 - 1, return_pos);
+    }
+
+    #[test]
+    fn test_0x60_rts() {
+        let mut cpu = CPU::new();
+        /*
+            JSR init
+            BRK
+
+            init:
+            LDX #$05
+            RTS
+        */
+        cpu.interpret(CPU::transform("20 04 00 00 a2 05 60"));
+        assert_eq!(cpu.program_counter, 0x04);
+        assert_eq!(cpu.stack_pointer, 0xff);
+        assert_eq!(cpu.register_x, 0x5);
     }
 }

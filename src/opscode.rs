@@ -23,6 +23,8 @@ impl OpsCode {
 
 lazy_static! {
    pub static ref CPU_OPS_CODES: Vec<OpsCode> = vec![
+       OpsCode::new(0x00, "BRK", 1, 7, AddressingMode::NoneAddressing),
+
        OpsCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
        OpsCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
        OpsCode::new(0x75, "ADC", 2, 4, AddressingMode::ZeroPage_X),
@@ -110,6 +112,9 @@ lazy_static! {
 
        OpsCode::new(0x4c, "JMP", 3, 3, AddressingMode::NoneAddressing), //AddressingMode that acts as Immidiate
        OpsCode::new(0x6c, "JMP", 3, 5, AddressingMode::NoneAddressing), //AddressingMode:Indirect with 6502 bug
+
+       OpsCode::new(0x20, "JSR", 3, 6, AddressingMode::NoneAddressing),
+       OpsCode::new(0x60, "RTS", 1, 6, AddressingMode::NoneAddressing),
 
        OpsCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing),
 
