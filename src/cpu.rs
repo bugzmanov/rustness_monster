@@ -5,14 +5,14 @@ use std::collections::HashMap;
 
 bitflags! {
 
-/// # Status Register (P)
+/// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
 ///
 ///  7 6 5 4 3 2 1 0
 ///  N V _ B D I Z C
 ///  | |   | | | | +--- Carry Flag
 ///  | |   | | | +----- Zero Flag
 ///  | |   | | +------- Interrupt Disable
-///  | |   | +--------- Decimal Mode (Allows BCD, not implemented on NES)
+///  | |   | +--------- Decimal Mode (not used on NES)
 ///  | |   +----------- Break Command
 ///  | +--------------- Overflow Flag
 ///  +----------------- Negative Flag
@@ -217,21 +217,33 @@ impl CPU {
         hex::decode(s.replace(' ', "")).expect("Decoding failed")
     }
 
+    /// note: ignoring decimal mode
+    /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
     fn add_to_register_a(&mut self, data: u8) {
-        let sum = data.wrapping_add(self.register_a);
-        // if let None = data.checked_add(self.register_a) { //todo: why is this not working?
-        let register_a_negbit = self.register_a >> 7;
-        let data_negbit = data >> 7;
-        if data_negbit == 0 && register_a_negbit == 0 && sum >> 7 == 1
-            || data_negbit == 1 && register_a_negbit == 1 && sum >> 7 == 0
-        {
-            self.flags.insert(CpuFlags::OVERFLOW);
+        let sum = self.register_a as u16 + data as u16 + (if self.flags.contains(CpuFlags::CARRY) {1} else {0}) as u16;
+
+        let carry = sum > 0xff;
+
+        if carry {
+            self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
         }
 
-        if sum >> 7 ^ register_a_negbit == 0b1 {
-            self.flags.insert(CpuFlags::CARRY);
+        let result = sum as u8; 
+
+        if (data ^ result) & (result ^ self.register_a) & 0x80 != 0 {
+            self.flags.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.flags.remove(CpuFlags::OVERFLOW)
         }
-        self.set_register_a(sum);
+
+        self.set_register_a(result);
+    }
+
+    /// note: ignoring decimal mode
+    fn sub_from_register_a(&mut self, data: u8) {
+        self.add_to_register_a((-(data as i8) -1) as u8);
     }
 
     fn and_with_register_a(&mut self, data: u8) {
@@ -344,6 +356,11 @@ impl CPU {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.add_to_register_a(data);
             }
+
+            0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
+                let data = ops.mode.read_u8(&program[..], self);
+                self.sub_from_register_a(data);
+            },
 
             /* AND */
             0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
@@ -771,6 +788,41 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
     }
+
+
+    #[test]
+    fn test_0xe9_sbc() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x10;
+        cpu.interpret(CPU::transform("e9 02"));
+        assert_eq!(cpu.register_a, 0x0d);
+        assert_eq!(cpu.program_counter, 2);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
+    }
+
+    #[test]
+    fn test_0xe9_sbc_negative() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x02;
+        cpu.interpret(CPU::transform("e9 03"));
+        assert_eq!(cpu.register_a, 0xfe);
+        assert!(!cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+    }
+
+    #[test]
+    fn test_0xe9_sbc_overflow() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x50;
+        cpu.interpret(CPU::transform("e9 b0"));
+        assert_eq!(cpu.register_a, 0x9f);
+        assert!(!cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
+    }
+
 
     #[test]
     fn test_0x29_and_flags() {
