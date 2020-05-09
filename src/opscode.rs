@@ -110,6 +110,16 @@ lazy_static! {
        OpsCode::new(0xca, "DEX", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0x88, "DEY", 1, 2, AddressingMode::NoneAddressing),
 
+       OpsCode::new(0xc9, "CMP", 2, 2, AddressingMode::Immediate),
+       OpsCode::new(0xc5, "CMP", 2, 3, AddressingMode::ZeroPage),
+       OpsCode::new(0xd5, "CMP", 2, 4, AddressingMode::ZeroPage_X),
+       OpsCode::new(0xcd, "CMP", 3, 4, AddressingMode::Absolute),
+       OpsCode::new(0xdd, "CMP", 3, 4/*+1 if page crossed*/, AddressingMode::Absolute_X),
+       OpsCode::new(0xd9, "CMP", 3, 4/*+1 if page crossed*/, AddressingMode::Absolute_Y),
+       OpsCode::new(0xc1, "CMP", 2, 6, AddressingMode::Indirect_X),
+       OpsCode::new(0xd1, "CMP", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y),
+
+
        OpsCode::new(0x4c, "JMP", 3, 3, AddressingMode::NoneAddressing), //AddressingMode that acts as Immidiate
        OpsCode::new(0x6c, "JMP", 3, 5, AddressingMode::NoneAddressing), //AddressingMode:Indirect with 6502 bug
 

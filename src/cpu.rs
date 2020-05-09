@@ -524,6 +524,16 @@ impl CPU {
                 self._udpate_cpu_flags(self.register_y);
             }
 
+            /* CMP */
+            0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
+                let data = ops.mode.read_u8(&program[..], self);
+                if data <= self.register_a {
+                    self.flags.insert(CpuFlags::CARRY);
+                } 
+
+                self._udpate_cpu_flags(self.register_a.wrapping_sub(data));
+            }
+
             /* JMP Absolute */
             0x4c => {
                 let mem_address = LittleEndian::read_u16(&program[self.program_counter as usize..]);
@@ -1174,4 +1184,32 @@ mod test {
         assert_eq!(cpu.flags.bits, 0b11000001);
         assert_eq!(cpu.program_counter, 0x100);
     }
+
+    #[test]
+    fn test_0xc9_cmp_immidiate() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x6;
+        cpu.interpret(CPU::transform("c9 05"));
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+
+        cpu.program_counter = 0;
+        cpu.flags.bits = 0;
+        cpu.interpret(CPU::transform("c9 06"));
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+
+        cpu.program_counter = 0;
+        cpu.flags.bits = 0;
+        cpu.interpret(CPU::transform("c9 07"));
+        assert!(!cpu.flags.contains(CpuFlags::CARRY));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+
+        cpu.program_counter = 0;
+        cpu.flags.bits = 0;
+        cpu.interpret(CPU::transform("c9 90"));
+        assert!(!cpu.flags.contains(CpuFlags::CARRY));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+    } 
 }
