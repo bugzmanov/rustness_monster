@@ -305,14 +305,16 @@ impl CPU {
         match program[begin] {
             /* CLC */ 0x18 => {
                 self.clear_carry_flag();
-            }
+            },
+
             /* SEC */ 0x38 => {
                 self.set_carry_flag();
-            }
+            },
 
             /* PHA */ 0x48 => {
                 self.stack_push(self.register_a);
-            }
+            },
+
             /* PLA */
             0x68 => {
                 let data = self.stack_pop();
@@ -353,7 +355,7 @@ impl CPU {
                 data = data >> 1;
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data)
-            }
+            },
 
             /* ASL */
             0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
@@ -366,7 +368,7 @@ impl CPU {
                 data = data << 1;
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data)
-            }
+            },
 
             /* ROL */
             0x2a | 0x26 | 0x36 | 0x2e | 0x3e => {
@@ -410,31 +412,43 @@ impl CPU {
                 data = data.wrapping_add(1);
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data);
-            }
+            },
 
             /* STA */
             0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                 ops.mode.write_u8(&program[..], self, self.register_a);
+            },
+
+            /* STX */
+            0x86 | 0x96 | 0x8e => { //todo tests
+                ops.mode.write_u8(&program[..], self, self.register_x);
+            },
+
+            /* STY */
+            0x84 | 0x94 | 0x8c  => { //todo tests
+                ops.mode.write_u8(&program[..], self, self.register_y);
             }
+
             /* LDA */
             0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
                 //todo: tests
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_a(data);
-            }
+            },
 
             /* LDX */
             0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_x(data);
-            }
+            },
 
+            /* LDY */
             0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
-                //todo: tests
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_y(data);
-            }
+            },
 
+            
             _ => panic!("Unknown ops code"),
         }
 
