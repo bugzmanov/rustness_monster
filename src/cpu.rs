@@ -321,8 +321,24 @@ impl CPU {
                 data = data << 1;
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data)
-            }
+            },
             
+            /* ROL */ 0x2a | 0x26 | 0x36 | 0x2e | 0x3e => {
+                let mut data = ops.mode.read_u8(&program[..], self);
+                let old_carry = self.flags.contains(CpuFlags::CARRY);
+
+                if data >> 7 == 1 {
+                    self.set_carry_flag();
+                } else {
+                    self.clear_carry_flag();
+                }
+                data = data << 1;
+                if old_carry {
+                    data = data | 1;    
+                }
+                ops.mode.write_u8(&program[..], self, data);
+                self._udpate_cpu_flags(data)
+            },
             
             /* INC */ 0xe6 | 0xf6 | 0xee | 0xfe => {
                 let mut data = ops.mode.read_u8(&program[..], self);
@@ -608,4 +624,25 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
     }
+    
+    #[test]
+    fn test_0x2e_rol_memory_flags() {
+        let mut cpu = CPU::new();    
+        cpu.memory.write(0x1510, 0b10000001);
+        cpu.interpret(CPU::transform("2e 10 15"));
+        assert_eq!(cpu.memory.read(0x1510), 0b00000010);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_0x2e_rol_memory_flags_carry() {
+        let mut cpu = CPU::new();    
+        cpu.flags.insert(CpuFlags::CARRY);
+        cpu.memory.write(0x1510, 0b00000001);
+        cpu.interpret(CPU::transform("2e 10 15"));
+        assert_eq!(cpu.memory.read(0x1510), 0b00000011);
+        assert!(!cpu.flags.contains(CpuFlags::CARRY));
+    }
+
+
 }

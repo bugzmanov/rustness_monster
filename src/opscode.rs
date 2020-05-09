@@ -45,7 +45,7 @@ impl OpsCode {
 
         OpsCode::new(0x0a, "ASL", 1, 2, AddressingMode::Accumulator), 
         OpsCode::new(0x06, "ASL", 2, 5, AddressingMode::ZeroPage), 
-        OpsCode::new(0x16, "ASL", 2, 5, AddressingMode::ZeroPage_X), 
+        OpsCode::new(0x16, "ASL", 2, 6, AddressingMode::ZeroPage_X), 
         OpsCode::new(0x0e, "ASL", 3, 6, AddressingMode::Absolute), 
         OpsCode::new(0x1e, "ASL", 3, 7, AddressingMode::Absolute_X), 
 
@@ -54,6 +54,12 @@ impl OpsCode {
         OpsCode::new(0x56, "LSR", 2, 6, AddressingMode::ZeroPage_X), 
         OpsCode::new(0x4e, "LSR", 3, 6, AddressingMode::Absolute), 
         OpsCode::new(0x5e, "LSR", 3, 7, AddressingMode::Absolute_X), 
+
+        OpsCode::new(0x2a, "ROL", 1, 2, AddressingMode::Accumulator), 
+        OpsCode::new(0x26, "ROL", 2, 5, AddressingMode::ZeroPage), 
+        OpsCode::new(0x36, "ROL", 2, 6, AddressingMode::ZeroPage_X), 
+        OpsCode::new(0x2e, "ROL", 3, 6, AddressingMode::Absolute), 
+        OpsCode::new(0x3e, "ROL", 3, 7, AddressingMode::Absolute_X), 
         
         OpsCode::new(0xe6, "INC", 2, 5, AddressingMode::ZeroPage), 
         OpsCode::new(0xf6, "INC", 2, 6, AddressingMode::ZeroPage_X), 
