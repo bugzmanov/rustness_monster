@@ -635,6 +635,20 @@ impl CPU {
                 self.branch(&program[..], !self.flags.contains(CpuFlags::CARRY));
             }
 
+            /* BIT */
+            0x24 | 0x2c => {
+                let data = ops.mode.read_u8(&program[..], self);
+                let and = self.register_a & data;
+                if and == 0 {
+                    self.flags.insert(CpuFlags::ZERO);
+                } else {
+                    self.flags.remove(CpuFlags::ZERO);
+                }
+
+                self.flags.set(CpuFlags::NEGATIV, data & 0b10000000 > 0);
+                self.flags.set(CpuFlags::OVERFLOW, data & 0b01000000 > 0);
+            }
+
             /* STA */
             0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                 ops.mode.write_u8(&program[..], self, self.register_a);
@@ -1305,5 +1319,17 @@ mod test {
         */
         cpu.interpret(CPU::transform("a2 08 ca c8 e0 03 d0 fa 00"));
         assert_eq!(cpu.register_y, 5);
+    }
+
+    #[test]
+    fn test_0x24_bit() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0b00000010;
+        cpu.memory.write(0x10, 0b10111101);
+        cpu.interpret(CPU::transform("24 10"));
+
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
     }
 }

@@ -150,6 +150,9 @@ lazy_static! {
        OpsCode::new(0xb0, "BCS", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
        OpsCode::new(0x90, "BCC", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
 
+       OpsCode::new(0x24, "BIT", 2, 3, AddressingMode::ZeroPage),
+       OpsCode::new(0x2c, "BIT", 2, 4, AddressingMode::Absolute),
+
 
        /* Stores, Loads */
        OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
