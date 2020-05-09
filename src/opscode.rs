@@ -143,9 +143,15 @@ lazy_static! {
        OpsCode::new(0x40, "RTI", 1, 6, AddressingMode::NoneAddressing),
 
        OpsCode::new(0xd0, "BNE", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0x70, "BVS", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0x50, "BVC", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0x30, "BMI", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0xf0, "BEQ", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0xb0, "BCS", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0x90, "BCC", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
 
 
-       /* Stores, Loads */ 
+       /* Stores, Loads */
        OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
        OpsCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage),
        OpsCode::new(0xb5, "LDA", 2, 4, AddressingMode::ZeroPage_X),

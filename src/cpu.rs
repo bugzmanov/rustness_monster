@@ -346,6 +346,13 @@ impl CPU {
         self._udpate_cpu_flags(compare_with.wrapping_sub(data));
     }
 
+    fn branch(&mut self, mem: &[u8], condition: bool) {
+        if condition {
+            let jump: i8 = mem[self.program_counter as usize] as i8;
+            self.program_counter = self.program_counter.wrapping_add(jump as u16);
+        }
+    }
+
     pub fn interpret(&mut self, program: Vec<u8>) {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
 
@@ -590,10 +597,42 @@ impl CPU {
 
             /* BNE */
             0xd0 => {
-                if !self.flags.contains(CpuFlags::ZERO) {
-                    let jump: i8 = program[self.program_counter as usize] as i8;
-                    self.program_counter = self.program_counter.wrapping_add(jump as u16);
-                }
+                self.branch(&program[..], !self.flags.contains(CpuFlags::ZERO));
+            }
+
+            /* BVS */
+            0x70 => {
+                self.branch(&program[..], self.flags.contains(CpuFlags::OVERFLOW));
+            }
+
+            /* BVC */
+            0x50 => {
+                self.branch(&program[..], !self.flags.contains(CpuFlags::OVERFLOW));
+            }
+
+            /* BPL */
+            0x10 => {
+                self.branch(&program[..], !self.flags.contains(CpuFlags::NEGATIV));
+            }
+
+            /* BMI */
+            0x30 => {
+                self.branch(&program[..], self.flags.contains(CpuFlags::NEGATIV));
+            }
+
+            /* BEQ */
+            0xf0 => {
+                self.branch(&program[..], self.flags.contains(CpuFlags::ZERO));
+            }
+
+            /* BCS */
+            0xb0 => {
+                self.branch(&program[..], self.flags.contains(CpuFlags::CARRY));
+            }
+
+            /* BCC */
+            0x90 => {
+                self.branch(&program[..], !self.flags.contains(CpuFlags::CARRY));
             }
 
             /* STA */
@@ -1250,14 +1289,12 @@ mod test {
         cpu.flags.insert(CpuFlags::ZERO);
         cpu.interpret(CPU::transform("d0 04"));
         assert_eq!(cpu.program_counter, 0x02);
-
-
     }
 
     #[test]
     fn test_0xd0_bne_snippet() {
         let mut cpu = CPU::new();
-        /* 
+        /*
             LDX #$08
         decrement:
             DEX
