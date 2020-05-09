@@ -99,9 +99,10 @@ lazy_static! {
        OpsCode::new(0xca, "DEX", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0x88, "DEY", 1, 2, AddressingMode::NoneAddressing),
 
-       OpsCode::new(0x4c, "JMP", 3, 3, AddressingMode::Absolute),
+       OpsCode::new(0x4c, "JMP", 3, 3, AddressingMode::NoneAddressing), //AddressingMode that acts as Immidiate 
        OpsCode::new(0x6c, "JMP", 3, 5, AddressingMode::NoneAddressing), //AddressingMode:Indirect with 6502 bug
 
+       OpsCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing), 
 
        OpsCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
        OpsCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage),

@@ -509,6 +509,10 @@ impl CPU {
                 self.set_register_y(data);
             }
 
+            /* NOP */
+            0xea  =>  {
+                //do nothing
+            }
             _ => panic!("Unknown ops code"),
         }
 
@@ -902,5 +906,24 @@ mod test {
         let mut cpu = CPU::new();
         cpu.interpret(CPU::transform("4c 34 12"));
         assert_eq!(cpu.program_counter, 0x1234);
+    }
+
+    #[test]
+    fn test_0xea_nop() {
+        let mut cpu = CPU::new();
+        cpu.flags.insert(CpuFlags::CARRY);
+        cpu.flags.insert(CpuFlags::NEGATIV);
+        let flags = cpu.flags.clone();
+        cpu.register_y = 1;
+        cpu.register_x = 2;
+        cpu.register_a = 3;
+
+        cpu.interpret(CPU::transform("ea"));
+        assert_eq!(cpu.program_counter, 1);  
+        assert_eq!(cpu.register_y, 1);  
+        assert_eq!(cpu.register_x, 2);  
+        assert_eq!(cpu.register_a, 3);  
+        assert_eq!(cpu.register_a, 3);  
+        assert_eq!(cpu.flags, flags);  
     }
 }
