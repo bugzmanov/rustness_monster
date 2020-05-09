@@ -413,6 +413,17 @@ impl CPU {
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data);
             },
+            /* INX */
+            0xe8 => {
+                self.register_x = self.register_x.wrapping_add(1);
+                self._udpate_cpu_flags(self.register_x);
+            },
+
+            /* INY */
+            0xc8 => {
+                self.register_y = self.register_y.wrapping_add(1);
+                self._udpate_cpu_flags(self.register_y);
+            },
 
             /* STA */
             0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
@@ -804,5 +815,23 @@ mod test {
         cpu.register_x = 0x06;
         cpu.interpret(CPU::transform("b4 60"));
         assert_eq!(cpu.register_y, 55);
+    }
+
+    #[test]
+    fn test_0xc8_iny() {
+        let mut cpu = CPU::new();
+        cpu.register_y = 127;
+        cpu.interpret(CPU::transform("c8"));
+        assert_eq!(cpu.register_y, 128);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+    }
+    
+    #[test]
+    fn test_0xe8_inx() {
+        let mut cpu = CPU::new();
+        cpu.register_x = 0xff;
+        cpu.interpret(CPU::transform("e8"));
+        assert_eq!(cpu.register_x, 0);
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
     }
 }
