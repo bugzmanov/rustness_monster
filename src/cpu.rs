@@ -337,6 +337,15 @@ impl CPU {
             .read_u16((Memory::STACK as u16) + self.stack_pointer as u16)
     }
 
+    fn compare(&mut self, mode: &AddressingMode, mem: &[u8], compare_with: u8) {
+        let data = mode.read_u8(&mem[..], self);
+        if data <= compare_with {
+            self.flags.insert(CpuFlags::CARRY);
+        }
+
+        self._udpate_cpu_flags(compare_with.wrapping_sub(data));
+    }
+
     pub fn interpret(&mut self, program: Vec<u8>) {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
 
@@ -526,13 +535,16 @@ impl CPU {
 
             /* CMP */
             0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
-                let data = ops.mode.read_u8(&program[..], self);
-                if data <= self.register_a {
-                    self.flags.insert(CpuFlags::CARRY);
-                } 
-
-                self._udpate_cpu_flags(self.register_a.wrapping_sub(data));
+                self.compare(&ops.mode, &program[..], self.register_a);
             }
+
+            /* CPY */ //todo tests
+            0xc0 | 0xc4 | 0xcc => {
+                self.compare(&ops.mode, &program[..], self.register_y);
+            }
+
+            /* CPX */ //todo tests
+            0xe0 | 0xe4 | 0xec => self.compare(&ops.mode, &program[..], self.register_x),
 
             /* JMP Absolute */
             0x4c => {
@@ -1211,5 +1223,5 @@ mod test {
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
-    } 
+    }
 }
