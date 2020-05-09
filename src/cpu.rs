@@ -232,15 +232,18 @@ impl CPU {
         self.set_register_a(sum);
     }
 
-    fn and_with_register_a(&mut self, data: u8) { //todo remove this
+    fn and_with_register_a(&mut self, data: u8) {
+        //todo remove this
         self.set_register_a(data & self.register_a);
     }
 
-    fn xor_with_register_a(&mut self, data: u8) { //todo remove this
+    fn xor_with_register_a(&mut self, data: u8) {
+        //todo remove this
         self.set_register_a(data ^ self.register_a);
     }
-    
-    fn or_with_register_a(&mut self, data: u8) { //todo remove this
+
+    fn or_with_register_a(&mut self, data: u8) {
+        //todo remove this
         self.set_register_a(data | self.register_a);
     }
 
@@ -305,44 +308,44 @@ impl CPU {
         match program[begin] {
             /* CLC */ 0x18 => {
                 self.clear_carry_flag();
-            },
+            }
 
             /* SEC */ 0x38 => {
                 self.set_carry_flag();
-            },
+            }
 
             /* PHA */ 0x48 => {
                 self.stack_push(self.register_a);
-            },
+            }
 
             /* PLA */
             0x68 => {
                 let data = self.stack_pop();
                 self.set_register_a(data);
-            },
+            }
 
             /* ADC */
             0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.add_to_register_a(data);
-            },
+            }
 
             /* AND */
             0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.and_with_register_a(data);
-            },
+            }
 
             /* EOR */
-            0x49| 0x45| 0x55| 0x4d| 0x5d| 0x59| 0x41| 0x51 => {
+            0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.xor_with_register_a(data);
-            },
+            }
 
             0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.or_with_register_a(data);
-            },
+            }
 
             /* LSR */
             0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
@@ -355,7 +358,7 @@ impl CPU {
                 data = data >> 1;
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data)
-            },
+            }
 
             /* ASL */
             0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
@@ -368,7 +371,7 @@ impl CPU {
                 data = data << 1;
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data)
-            },
+            }
 
             /* ROL */
             0x2a | 0x26 | 0x36 | 0x2e | 0x3e => {
@@ -386,7 +389,7 @@ impl CPU {
                 }
                 ops.mode.write_u8(&program[..], self, data);
                 self._update_negative_flag(data)
-            },
+            }
 
             /* ROR */
             0x6a | 0x66 | 0x76 | 0x6e | 0x7e => {
@@ -404,7 +407,7 @@ impl CPU {
                 }
                 ops.mode.write_u8(&program[..], self, data);
                 self._update_negative_flag(data)
-            },
+            }
 
             /* INC */
             0xe6 | 0xf6 | 0xee | 0xfe => {
@@ -412,31 +415,56 @@ impl CPU {
                 data = data.wrapping_add(1);
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data);
-            },
+            }
             /* INX */
             0xe8 => {
                 self.register_x = self.register_x.wrapping_add(1);
                 self._udpate_cpu_flags(self.register_x);
-            },
+            }
 
             /* INY */
             0xc8 => {
                 self.register_y = self.register_y.wrapping_add(1);
                 self._udpate_cpu_flags(self.register_y);
-            },
+            }
+
+            /* DEC */
+            0xc6 | 0xd6 | 0xce | 0xde => {
+                //todo tests
+                let mut data = ops.mode.read_u8(&program[..], self);
+                data = data.wrapping_sub(1);
+                ops.mode.write_u8(&program[..], self, data);
+                self._udpate_cpu_flags(data);
+            }
+
+            /* DEX */
+            0xca => {
+                //todo tests
+                self.register_x = self.register_x.wrapping_sub(1);
+                self._udpate_cpu_flags(self.register_x);
+            }
+
+            /* DEY */
+            0x88 => {
+                //todo tests
+                self.register_y = self.register_y.wrapping_sub(1);
+                self._udpate_cpu_flags(self.register_y);
+            }
 
             /* STA */
             0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                 ops.mode.write_u8(&program[..], self, self.register_a);
-            },
+            }
 
             /* STX */
-            0x86 | 0x96 | 0x8e => { //todo tests
+            0x86 | 0x96 | 0x8e => {
+                //todo tests
                 ops.mode.write_u8(&program[..], self, self.register_x);
-            },
+            }
 
             /* STY */
-            0x84 | 0x94 | 0x8c  => { //todo tests
+            0x84 | 0x94 | 0x8c => {
+                //todo tests
                 ops.mode.write_u8(&program[..], self, self.register_y);
             }
 
@@ -445,21 +473,20 @@ impl CPU {
                 //todo: tests
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_a(data);
-            },
+            }
 
             /* LDX */
             0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_x(data);
-            },
+            }
 
             /* LDY */
             0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
                 let data = ops.mode.read_u8(&program[..], self);
                 self.set_register_y(data);
-            },
+            }
 
-            
             _ => panic!("Unknown ops code"),
         }
 
@@ -825,7 +852,7 @@ mod test {
         assert_eq!(cpu.register_y, 128);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
-    
+
     #[test]
     fn test_0xe8_inx() {
         let mut cpu = CPU::new();
