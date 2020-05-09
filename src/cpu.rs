@@ -319,6 +319,16 @@ impl CPU {
                 self.set_carry_flag();
             }
 
+            /* SEI */
+            0x78 => {
+                self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
+            }
+
+            /* SED */
+            0xf8 => {
+                self.flags.insert(CpuFlags::DECIMAL_MODE);
+            }
+
             /* PHA */ 0x48 => {
                 self.stack_push(self.register_a);
             }
@@ -549,11 +559,6 @@ impl CPU {
                 self._udpate_cpu_flags(self.register_a);
             }
 
-            /* SEI */
-            0x78 => {
-                self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
-            }
-            
             _ => panic!("Unknown ops code"),
         }
 
