@@ -588,6 +588,14 @@ impl CPU {
                 self.program_counter = self.stack_pop_u16();
             }
 
+            /* BNE */
+            0xd0 => {
+                if !self.flags.contains(CpuFlags::ZERO) {
+                    let jump: i8 = program[self.program_counter as usize] as i8;
+                    self.program_counter = self.program_counter.wrapping_add(jump as u16);
+                }
+            }
+
             /* STA */
             0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                 ops.mode.write_u8(&program[..], self, self.register_a);
@@ -1229,5 +1237,36 @@ mod test {
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+    }
+
+    #[test]
+    fn test_0xd0_bne() {
+        let mut cpu = CPU::new();
+        cpu.flags.remove(CpuFlags::ZERO);
+        cpu.interpret(CPU::transform("d0 04"));
+        assert_eq!(cpu.program_counter, 0x05);
+
+        cpu.program_counter = 0;
+        cpu.flags.insert(CpuFlags::ZERO);
+        cpu.interpret(CPU::transform("d0 04"));
+        assert_eq!(cpu.program_counter, 0x02);
+
+
+    }
+
+    #[test]
+    fn test_0xd0_bne_snippet() {
+        let mut cpu = CPU::new();
+        /* 
+            LDX #$08
+        decrement:
+            DEX
+            INY
+            CPX #$03
+            BNE decrement
+            BRK
+        */
+        cpu.interpret(CPU::transform("a2 08 ca c8 e0 03 d0 fa 00"));
+        assert_eq!(cpu.register_y, 5);
     }
 }
