@@ -1,5 +1,4 @@
 use hex;
-use std::num::Wrapping;
 use byteorder::{ByteOrder, LittleEndian};
 use crate::opscode;
 use std::collections::HashMap;
@@ -101,6 +100,7 @@ impl Memory {
 }
 
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
     Accumulator,
@@ -112,7 +112,7 @@ pub enum AddressingMode {
     Absolute_Y,
     Indirect_X,
     Indirect_Y,   
-    None_Addressing,
+    NoneAddressing,
 }
 
 impl AddressingMode {
@@ -149,7 +149,7 @@ impl AddressingMode {
                 cpu.memory.read(deref)
             },
             AddressingMode::Accumulator => panic!("should not reach this code"),
-            AddressingMode::None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
+            AddressingMode::NoneAddressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
         }
     }  
 
@@ -191,7 +191,7 @@ impl AddressingMode {
                 panic!("shouldn't be here");
                 // cpu.set_register_a(data)
             }
-            AddressingMode::None_Addressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
+            AddressingMode::NoneAddressing => panic!("AddressingMode::NoneAddressing shouldn't be used to read data"),
         }
     }
 }
@@ -214,12 +214,14 @@ impl CPU {
     fn add_to_register_a(&mut self, data: u8) {
         let sum = data.wrapping_add(self.register_a);
         // if let None = data.checked_add(self.register_a) { //todo: why is this not working? 
-        if data >> 7 == 0 && self.register_a >> 7 == 0 && sum >> 7 == 1 ||
-           data >> 7 == 1 && self.register_a >> 7 == 1 && sum >> 7 == 0 {
+        let register_a_negbit =self.register_a >> 7;
+        let data_negbit = data >> 7;
+        if data_negbit == 0 && register_a_negbit == 0 && sum >> 7 == 1 ||
+           data_negbit == 1 && register_a_negbit == 1 && sum >> 7 == 0 {
             self.flags.insert(CpuFlags::OVERFLOW);         
         }
 
-        if (sum >> 7 ^ self.register_a >> 7 == 0b1) {
+        if sum >> 7 ^ register_a_negbit == 0b1 {
             self.flags.insert(CpuFlags::CARRY);
         }
         self.set_register_a(sum);
@@ -297,7 +299,19 @@ impl CPU {
                 self.and_with_register_a(data);
             }
 
-            /* ASL Memory */ 0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
+            /* LSR */ 0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
+                let mut data = ops.mode.read_u8(&program[..], self);
+                if data & 1 == 1 {
+                    self.set_carry_flag();
+                } else {
+                    self.clear_carry_flag();
+                }
+                data = data >> 1;
+                ops.mode.write_u8(&program[..], self, data);
+                self._udpate_cpu_flags(data)
+            },
+
+            /* ASL */ 0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
                 let mut data = ops.mode.read_u8(&program[..], self);
                 if data >> 7 == 1 {
                     self.set_carry_flag();
@@ -307,8 +321,9 @@ impl CPU {
                 data = data << 1;
                 ops.mode.write_u8(&program[..], self, data);
                 self._udpate_cpu_flags(data)
-            },
-
+            }
+            
+            
             /* INC */ 0xe6 | 0xf6 | 0xee | 0xfe => {
                 let mut data = ops.mode.read_u8(&program[..], self);
                 data = data.wrapping_add(1);
@@ -554,7 +569,7 @@ mod test {
     }
 
     #[test]
-    fn test_0x06_as_memory() {
+    fn test_0x06_asl_memory() {
         let mut cpu = CPU::new();    
         cpu.memory.write(0x10, 0b01000001);
         cpu.interpret(CPU::transform("06 10"));
@@ -563,7 +578,7 @@ mod test {
     }
 
     #[test]
-    fn test_0x06_as_memory_flags() {
+    fn test_0x06_asl_memory_flags() {
         let mut cpu = CPU::new();    
         cpu.memory.write(0x10, 0b10000000);
         cpu.interpret(CPU::transform("06 10"));
@@ -583,4 +598,14 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
 
+    #[test]
+    fn test_0x46_lsr_memory_flags() {
+        let mut cpu = CPU::new();    
+        cpu.memory.write(0x10, 0b00000001);
+        cpu.interpret(CPU::transform("46 10"));
+        assert_eq!(cpu.memory.read(0x10), 0b0);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+    }
 }

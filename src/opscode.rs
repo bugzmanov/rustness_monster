@@ -48,6 +48,12 @@ impl OpsCode {
         OpsCode::new(0x16, "ASL", 2, 5, AddressingMode::ZeroPage_X), 
         OpsCode::new(0x0e, "ASL", 3, 6, AddressingMode::Absolute), 
         OpsCode::new(0x1e, "ASL", 3, 7, AddressingMode::Absolute_X), 
+
+        OpsCode::new(0x4a, "LSR", 1, 2, AddressingMode::Accumulator), 
+        OpsCode::new(0x46, "LSR", 2, 5, AddressingMode::ZeroPage), 
+        OpsCode::new(0x56, "LSR", 2, 6, AddressingMode::ZeroPage_X), 
+        OpsCode::new(0x4e, "LSR", 3, 6, AddressingMode::Absolute), 
+        OpsCode::new(0x5e, "LSR", 3, 7, AddressingMode::Absolute_X), 
         
         OpsCode::new(0xe6, "INC", 2, 5, AddressingMode::ZeroPage), 
         OpsCode::new(0xf6, "INC", 2, 6, AddressingMode::ZeroPage_X), 
@@ -71,12 +77,12 @@ impl OpsCode {
         OpsCode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X), 
         OpsCode::new(0x91, "STA", 2, 6, AddressingMode::Indirect_Y), 
         
-        OpsCode::new(0x18, "CLC", 1, 2, AddressingMode::None_Addressing), 
-        OpsCode::new(0x38, "SEC", 1, 2, AddressingMode::None_Addressing), 
+        OpsCode::new(0x18, "CLC", 1, 2, AddressingMode::NoneAddressing), 
+        OpsCode::new(0x38, "SEC", 1, 2, AddressingMode::NoneAddressing), 
 
 
-        OpsCode::new(0x48, "PHA", 1, 3, AddressingMode::None_Addressing), 
-        OpsCode::new(0x68, "PLA", 1, 4, AddressingMode::None_Addressing), 
+        OpsCode::new(0x48, "PHA", 1, 3, AddressingMode::NoneAddressing), 
+        OpsCode::new(0x68, "PLA", 1, 4, AddressingMode::NoneAddressing), 
 
 
 
