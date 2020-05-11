@@ -149,6 +149,7 @@ lazy_static! {
        OpsCode::new(0xf0, "BEQ", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
        OpsCode::new(0xb0, "BCS", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
        OpsCode::new(0x90, "BCC", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
+       OpsCode::new(0x10, "BPL", 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
 
        OpsCode::new(0x24, "BIT", 2, 3, AddressingMode::ZeroPage),
        OpsCode::new(0x2c, "BIT", 2, 4, AddressingMode::Absolute),
@@ -204,7 +205,6 @@ lazy_static! {
        OpsCode::new(0x78, "SEI", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0xf8, "SED", 1, 2, AddressingMode::NoneAddressing),
 
-
        OpsCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0xa8, "TAY", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0xba, "TSX", 1, 2, AddressingMode::NoneAddressing),
@@ -212,16 +212,11 @@ lazy_static! {
        OpsCode::new(0x9a, "TXS", 1, 2, AddressingMode::NoneAddressing),
        OpsCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
 
-
        /* Stack */
        OpsCode::new(0x48, "PHA", 1, 3, AddressingMode::NoneAddressing),
        OpsCode::new(0x68, "PLA", 1, 4, AddressingMode::NoneAddressing),
        OpsCode::new(0x08, "PHP", 1, 3, AddressingMode::NoneAddressing),
        OpsCode::new(0x28, "PLP", 1, 4, AddressingMode::NoneAddressing),
-
-
-
-
    ];
 
    pub static ref OPSCODES_MAP: HashMap<u8, &'static OpsCode> = {
