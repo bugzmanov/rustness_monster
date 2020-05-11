@@ -21,10 +21,6 @@ fn main() {
     cpu.program_counter = 0x600;
     cpu.memory.space[0x600..(snake_u8.len()+0x600)].copy_from_slice(&snake_u8);
     
-    println!("olo:{}", cpu.memory.space[0x600]);
-    println!("lolo: {}", cpu.memory.space[0x601]);
-
-
     let screen = Screen::new();
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
@@ -62,6 +58,9 @@ fn main() {
             }
         }
     }
+
+    execute!(handle, crossterm::cursor::Show).unwrap();
+
     crossterm::terminal::disable_raw_mode().unwrap();
 
     execute!(handle, LeaveAlternateScreen).unwrap();
@@ -83,7 +82,7 @@ fn nes_loop(program: &[u8], entry: &mut CPU, screen: &Screen, handle: &mut impl 
         }
         buff.copy_from_slice(&cpu.memory.space[0x0200..0x600]);
 
-        if let Ok(true) = poll(Duration::from_millis(10)) {
+        if let Ok(true) = poll(Duration::from_millis(1)) {
             match read().unwrap() {
                 Event::Key(event) => {
                     if event.code == KeyCode::Down {
@@ -100,6 +99,12 @@ fn nes_loop(program: &[u8], entry: &mut CPU, screen: &Screen, handle: &mut impl 
                     }
 
                     if event.code == KeyCode::Char('x') {
+
+                        execute!(handle, crossterm::cursor::Show).unwrap();
+
+                        crossterm::terminal::disable_raw_mode().unwrap();
+
+                        execute!(handle, LeaveAlternateScreen).unwrap();
                         panic!("exit");
                     }
                 }
@@ -113,49 +118,3 @@ fn nes_loop(program: &[u8], entry: &mut CPU, screen: &Screen, handle: &mut impl 
     });
 }
 
-fn game_loop(screen: &Screen, handle: &mut impl Write) {
-    let mut x1 = 1;
-    let mut y1 = 1;
-
-    for x in 1..10 {
-        screen.draw(handle, x1 + x, y1, Color::Blue);
-    }
-
-    handle.flush().unwrap();
-
-    loop {
-        if let Ok(true) = poll(Duration::from_millis(10)) {
-            match read().unwrap() {
-                Event::Key(event) => {
-                    if event.code == KeyCode::Down {
-                        screen.goto_clear(handle, 0, y1);
-                        y1 += 1;
-                    }
-                    if event.code == KeyCode::Up {
-                        screen.goto_clear(handle, 0, y1);
-                        y1 -= 1;
-                    }
-                    if event.code == KeyCode::Left {
-                        screen.goto_clear(handle, 0, y1);
-                        x1 -= 1;
-                    }
-                    if event.code == KeyCode::Right {
-                        screen.goto_clear(handle, 0, y1);
-                        x1 += 1;
-                    }
-
-                    if event.code == KeyCode::Char('x') {
-                        break;
-                    }
-                    for x in 1..10 {
-                        screen.draw(handle, x1 + x, y1, Color::Blue);
-                    }
-                    handle.flush().unwrap();
-                }
-                _ =>
-                    /* do nothing */
-                    {}
-            }
-        }
-    }
-}
