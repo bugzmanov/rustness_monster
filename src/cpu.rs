@@ -1,3 +1,4 @@
+// https://skilldrick.github.io/easy6502/
 use crate::opscode;
 use byteorder::{ByteOrder, LittleEndian};
 use hex;
@@ -349,7 +350,10 @@ impl<'a> CPU {
     fn branch(&mut self, mem: &[u8], condition: bool) {
         if condition {
             let jump: i8 = mem[(self.program_counter) as usize] as i8;
-            self.program_counter = self.program_counter.wrapping_add(1).wrapping_add(jump as u16);
+            self.program_counter = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
         }
     }
 
@@ -362,19 +366,11 @@ impl<'a> CPU {
         F: FnMut(&mut CPU),
     {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
-        while((self.program_counter as usize) < program.len()){
+        while (self.program_counter as usize) < program.len() {
             let begin = self.program_counter as usize;
             let code = &program[begin];
             let ops = opscodes.get(code).unwrap();
 
-            let tmp =  match ops.len {
-                2 => format!("{:x}", program[begin + 1]),
-                3 => format!("{:x}", LittleEndian::read_u16(&program[begin +1 as usize..])),
-                _ => format!(""),
-
-            };
-
-            // println!("{:x}: {} {}", self.program_counter, ops.mnemonic, tmp);
             self.program_counter += 1;
 
             let program_counter_state = self.program_counter;
@@ -392,7 +388,8 @@ impl<'a> CPU {
 
                 /* CLV */ 0xb8 => self.flags.remove(CpuFlags::OVERFLOW),
 
-                /* CLC */ 0x18 => {
+                /* CLC */
+                0x18 => {
                     self.clear_carry_flag();
                 }
 
@@ -410,7 +407,8 @@ impl<'a> CPU {
                     self.flags.insert(CpuFlags::DECIMAL_MODE);
                 }
 
-                /* PHA */ 0x48 => {
+                /* PHA */
+                0x48 => {
                     self.stack_push(self.register_a);
                 }
 
@@ -420,7 +418,8 @@ impl<'a> CPU {
                     self.set_register_a(data);
                 }
 
-                /* PHP */ 0x08 => {
+                /* PHP */
+                0x08 => {
                     self.stack_push(self.flags.bits);
                 }
 
@@ -578,13 +577,15 @@ impl<'a> CPU {
 
                 /* JMP Absolute */
                 0x4c => {
-                    let mem_address = LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                    let mem_address =
+                        LittleEndian::read_u16(&program[self.program_counter as usize..]);
                     self.program_counter = mem_address;
                 }
 
                 /* JMP Indirect */
                 0x6c => {
-                    let mem_address = LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                    let mem_address =
+                        LittleEndian::read_u16(&program[self.program_counter as usize..]);
                     let indirect_ref = self.memory.read_u16(mem_address);
                     self.program_counter = indirect_ref;
                     //todo: 6502 bug mode with with page boundary:
@@ -1319,7 +1320,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.flags.remove(CpuFlags::ZERO);
         cpu.interpret(&CPU::transform("d0 04"));
-        assert_eq!(cpu.program_counter, 0x05);
+        assert_eq!(cpu.program_counter, 0x06);
 
         cpu.program_counter = 0;
         cpu.flags.insert(CpuFlags::ZERO);

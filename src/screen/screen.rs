@@ -13,13 +13,13 @@ impl Screen {
         return Screen {};
     }
     pub fn clear(&self, write: &mut impl Write) {
-        write.queue(Clear(ClearType::All));
+        write.queue(Clear(ClearType::All)).unwrap();
     }
 
     /// move the cursor to x,y and clears the line.
     pub fn goto_clear(&self, write: &mut impl Write, x: u16, y: u16) {
-        write.queue(cursor::MoveTo(x, y));
-        write.queue(Clear(ClearType::UntilNewLine));
+        write.queue(cursor::MoveTo(x, y)).unwrap();
+        write.queue(Clear(ClearType::UntilNewLine)).unwrap();
     }
 
     pub fn draw(&self, write: &mut impl Write, x: u16, y: u16, color: Color) {

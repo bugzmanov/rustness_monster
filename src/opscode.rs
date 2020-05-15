@@ -1,3 +1,6 @@
+// http://www.obelisk.me.uk/6502/reference.html
+// http://www.6502.org/tutorials/6502opcodes.html
+//
 use crate::cpu::AddressingMode;
 use std::collections::HashMap;
 
