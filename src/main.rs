@@ -1,4 +1,4 @@
-use rustness::cpu::CPU;
+use rustness::cpu::cpu::CPU;
 use rustness::nes::ines::Rom;
 
 use std::fs::File;

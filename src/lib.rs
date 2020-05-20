@@ -1,6 +1,6 @@
 pub mod cpu;
+pub mod disasm;
 pub mod nes;
-pub mod opscode;
 pub mod screen;
 
 #[macro_use]

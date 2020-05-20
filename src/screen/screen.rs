@@ -32,4 +32,15 @@ impl Screen {
         write.queue(cursor::MoveTo(x, y)).unwrap();
         write.queue(PrintStyledContent(cs.apply('█'))).unwrap();
     }
+
+    pub fn print(&self, write: &mut impl Write, x: u16, y: u16, color: Color, text: &str) {
+        let cs = ContentStyle {
+            foreground_color: Some(color),
+            background_color: Some(Color::Black),
+            attributes: Attributes::default(),
+        };
+
+        write.queue(cursor::MoveTo(x, y)).unwrap();
+        write.queue(PrintStyledContent(cs.apply(text))).unwrap();
+    }
 }

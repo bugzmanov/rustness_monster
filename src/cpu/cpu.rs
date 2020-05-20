@@ -1,5 +1,5 @@
 // https://skilldrick.github.io/easy6502/
-use crate::opscode;
+use crate::cpu::opscode;
 use byteorder::{ByteOrder, LittleEndian};
 use hex;
 use std::collections::HashMap;

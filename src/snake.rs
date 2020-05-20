@@ -1,4 +1,4 @@
-use rustness::cpu::CPU;
+use rustness::cpu::cpu::CPU;
 use rustness::screen::screen::Screen;
 use std::time::Duration;
 
@@ -9,6 +9,8 @@ use crossterm::event::KeyCode;
 use crossterm::event::{poll, read, Event};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, style::Color};
+
+use rustness::disasm;
 
 fn main() {
     let mut cpu = CPU::new();
@@ -64,6 +66,9 @@ fn main() {
 fn nes_loop(program: &[u8], entry: &mut CPU, screen: &Screen, handle: &mut impl Write) {
     let mut rng = rand::thread_rng();
     let mut buff = vec![0; 1024];
+
+    let asm = disasm::Disasm::new(program, entry.program_counter as usize);
+
     entry.interpret_fn(program, |cpu| {
         for x in 0..(4 * 32 * 8) {
             let mem = 0x0200 + (x as u16) as usize;
@@ -78,7 +83,24 @@ fn nes_loop(program: &[u8], entry: &mut CPU, screen: &Screen, handle: &mut impl 
             }
             // print!("{}", cpu.memory.space[0x2]);
         }
+
         buff.copy_from_slice(&cpu.memory.space[0x0200..0x600]);
+
+        // let sts = &format!("{:x}: {} {}", cpu.program_counter, ops.mnemonic, tmp);
+        let (code, position) = asm.slice(cpu.program_counter);
+        for i in 0..code.len() {
+            if i == position {
+                screen.print(handle, 40, 1 + i as u16, Color::Green, &code[i as usize]);
+            } else {
+                screen.print(
+                    handle,
+                    40,
+                    1 + i as u16,
+                    Color::DarkGreen,
+                    &code[i as usize],
+                );
+            }
+        }
 
         if let Ok(true) = poll(Duration::from_millis(1)) {
             match read().unwrap() {
@@ -98,7 +120,7 @@ fn nes_loop(program: &[u8], entry: &mut CPU, screen: &Screen, handle: &mut impl 
 
                     if event.code == KeyCode::Char('x') {
                         execute!(handle, crossterm::cursor::Show).unwrap();
-                        
+
                         crossterm::terminal::disable_raw_mode().unwrap();
 
                         execute!(handle, LeaveAlternateScreen).unwrap();
