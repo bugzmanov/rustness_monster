@@ -3,8 +3,17 @@ name = "rustness"
 version = "0.1.0"
 authors = ["bugzmanov <bugzmanov@gmail.com>"]
 edition = "2018"
+# path = "src/snake.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "rustness"
+path = "src/main.rs"
+
+[[bin]]
+name = "snake"
+path = "src/snake.rs"
 
 [dependencies]
 hex = "0.4.2"

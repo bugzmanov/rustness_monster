@@ -15,23 +15,23 @@ const PRG_RAM_PAGE_SIZE: usize = 8192;
 
 #[derive(Debug)]
 pub struct Rom {
-    trainer: Option<Vec<u8>>,
-    prg_rom: Vec<u8>,
-    chr_rom: Vec<u8>,
-    mapper: u8,
-    tv_format: TVFormat,
-    ram_size: usize,
-    rom_flags: RomFlags,
+    pub trainer: Option<Vec<u8>>,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
+    pub mapper: u8,
+    pub tv_format: TVFormat,
+    pub ram_size: usize,
+    pub rom_flags: RomFlags,
 }
 
 #[derive(Debug)]
-enum TVFormat {
+pub enum TVFormat {
     PAL,
     NTSC,
 }
 
 bitflags! {
-    struct RomFlags: u8 {
+    pub struct RomFlags: u8 {
         const VERTICAL_MIRRORING = 0b00000001;
         const BATTERY_RAM        = 0b00000010;
         const TRAINER            = 0b00000100;

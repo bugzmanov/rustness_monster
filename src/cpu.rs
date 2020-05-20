@@ -372,8 +372,18 @@ impl<'a> CPU {
             let ops = opscodes.get(code).unwrap();
 
             self.program_counter += 1;
-
             let program_counter_state = self.program_counter;
+
+            // debug
+            // let tmp = match ops.len {
+            //     2 => format!("{:x}", program[begin + 1]),
+            //     3 => format!(
+            //         "{:x}",
+            //         LittleEndian::read_u16(&program[begin + 1 as usize..])
+            //     ),
+            //     _ => format!(""),
+            // };
+            // println!("{:x}: {} {}", self.program_counter, ops.mnemonic, tmp);
 
             match program[begin] {
                 /* BRK */
