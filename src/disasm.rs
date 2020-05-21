@@ -46,7 +46,7 @@ impl Disasm {
                             format!("${:04x}", address)
                         },
                         
-                        _ => panic!("unexpected addressing mode {:?} has size ops-len 2", ops.mode),
+                        _ => panic!("unexpected addressing mode {:?} has ops-len 2", ops.mode),
                     }
                     
                 },
@@ -113,6 +113,7 @@ pub fn disasm(program: &[u8], start: usize) -> Vec<String> {
 mod test {
     use super::*;
     use crate::cpu::cpu::CPU;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test() {

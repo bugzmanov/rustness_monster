@@ -1,5 +1,5 @@
 // https://skilldrick.github.io/easy6502/
-use crate::cpu::opscode;
+use crate::{bus::bus::Bus, cpu::opscode};
 use byteorder::{ByteOrder, LittleEndian};
 use hex;
 use std::collections::HashMap;
@@ -33,44 +33,11 @@ pub struct Memory {
     pub space: [u8; 0xffff],
 }
 
-/// # Memory Map http://nesdev.com/NESDoc.pdf
-///
-///  _______________ $10000  _______________
-/// | PRG-ROM       |       |               |
-/// | Upper Bank    |       |               |
-/// |_ _ _ _ _ _ _ _| $C000 | PRG-ROM       |
-/// | PRG-ROM       |       |               |
-/// | Lower Bank    |       |               |
-/// |_______________| $8000 |_______________|
-/// | SRAM          |       | SRAM          |
-/// |_______________| $6000 |_______________|
-/// | Expansion ROM |       | Expansion ROM |
-/// |_______________| $4020 |_______________|
-/// | I/O Registers |       |               |
-/// |_ _ _ _ _ _ _ _| $4000 |               |
-/// | Mirrors       |       | I/O Registers |
-/// | $2000-$2007   |       |               |
-/// |_ _ _ _ _ _ _ _| $2008 |               |
-/// | I/O Registers |       |               |
-/// |_______________| $2000 |_______________|
-/// | Mirrors       |       |               |
-/// | $0000-$07FF   |       |               |
-/// |_ _ _ _ _ _ _ _| $0800 |               |
-/// | RAM           |       | RAM           |
-/// |_ _ _ _ _ _ _ _| $0200 |               |
-/// | Stack         |       |               |
-/// |_ _ _ _ _ _ _ _| $0100 |               |
-/// | Zero Page     |       |               |
-/// |_______________| $0000 |_______________|
-///
-trait Mem {
-    const ZERO_PAGE: u16 = 0x0;
-    const STACK: u16 = 0x0100;
-    const RAM: u16 = 0x0200;
-    const RAM_MIRRORS: u16 = 0x0800;
-    const IO_REGISTERS: u16 = 0x2000;
-    const IO_MIRRORS: u16 = 0x2008;
+const ZERO_PAGE: u16 = 0x0;
+const STACK: u16 = 0x0100;
+const STACK_SIZE: u16 = 0xff;
 
+pub trait Mem {
     fn write(&mut self, pos: u16, data: u8);
     fn write_u16(&mut self, pos: u16, data: u16);
 
@@ -95,6 +62,8 @@ impl Mem for Memory {
         LittleEndian::write_u16(&mut self.space[pos as usize..], data)
     }
 }
+
+
 
 impl Memory {
     pub fn new() -> Self {
@@ -171,7 +140,7 @@ impl AddressingMode {
         let pos: u8 = mem[cpu.program_counter as usize];
 
         match self {
-            AddressingMode::Immediate => panic!("Immediate adressing mode only for reading"),
+            AddressingMode::Immediate => panic!("Immediate adressing mode is only for reading"),
             AddressingMode::ZeroPage => cpu.memory.write(pos as u16, data),
             AddressingMode::ZeroPage_X => cpu.memory.write((pos + cpu.register_x) as u16, data),
             AddressingMode::ZeroPage_Y => cpu.memory.write((pos + cpu.register_y) as u16, data),
@@ -317,25 +286,25 @@ impl<'a> CPU {
     fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         self.memory
-            .read((Memory::STACK as u16) + self.stack_pointer as u16)
+            .read((STACK as u16) + self.stack_pointer as u16)
     }
 
     fn stack_push(&mut self, data: u8) {
         self.memory
-            .write((Memory::STACK as u16) + self.stack_pointer as u16, data);
+            .write((STACK as u16) + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
     fn stack_push_u16(&mut self, data: u16) {
         self.memory
-            .write_u16((Memory::STACK as u16) + self.stack_pointer as u16, data);
+            .write_u16((STACK as u16) + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(2);
     }
 
     fn stack_pop_u16(&mut self) -> u16 {
         self.stack_pointer = self.stack_pointer.wrapping_add(2);
         self.memory
-            .read_u16((Memory::STACK as u16) + self.stack_pointer as u16)
+            .read_u16((STACK as u16) + self.stack_pointer as u16)
     }
 
     fn compare(&mut self, mode: &AddressingMode, mem: &[u8], compare_with: u8) {
@@ -762,13 +731,7 @@ impl<'a> CPU {
             }
             //todo: cycles
 
-            // if let Some(f) = callback_opt.as_mut() {
             callback_opt(self);
-            // }
-
-            // if (self.program_counter as usize) < program.len() {
-            //     self.interpret_fn(program, callback_opt)
-            // }
         }
     }
 
@@ -820,7 +783,7 @@ mod test {
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("48"));
         assert_eq!(cpu.stack_pointer, 0xFE);
-        assert_eq!(cpu.memory.read(Memory::STACK + 0xFF), 100);
+        assert_eq!(cpu.memory.read(STACK + 0xFF), 100);
         assert_eq!(cpu.program_counter, 1);
     }
 
