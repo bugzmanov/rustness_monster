@@ -1,7 +1,6 @@
 use crate::cpu::cpu::Mem;
 use crate::cpu::cpu::CPU; 
 use crate::nes::ines::Rom;
-use byteorder::{ByteOrder, LittleEndian};
 
 // # Memory Map http://nesdev.com/NESDoc.pdf
 //

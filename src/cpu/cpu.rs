@@ -97,32 +97,32 @@ impl AddressingMode {
         let pos: u8 = mem[cpu.program_counter as usize];
         match self {
             AddressingMode::Immediate => pos,
-            AddressingMode::ZeroPage => cpu.memory.read(pos as u16),
-            AddressingMode::ZeroPage_X => cpu.memory.read((pos + cpu.register_x) as u16),
-            AddressingMode::ZeroPage_Y => cpu.memory.read((pos + cpu.register_y) as u16),
+            AddressingMode::ZeroPage => cpu.mem_read(pos as u16),
+            AddressingMode::ZeroPage_X => cpu.mem_read((pos + cpu.register_x) as u16),
+            AddressingMode::ZeroPage_Y => cpu.mem_read((pos + cpu.register_y) as u16),
             AddressingMode::Absolute => {
                 let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]);
-                cpu.memory.read(mem_address)
+                cpu.mem_read(mem_address)
             }
             AddressingMode::Absolute_X => {
                 let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
                     + cpu.register_x as u16;
-                cpu.memory.read(mem_address)
+                cpu.mem_read(mem_address)
             }
             AddressingMode::Absolute_Y => {
                 let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
                     + cpu.register_y as u16;
-                cpu.memory.read(mem_address)
+                cpu.mem_read(mem_address)
             }
 
             AddressingMode::Indirect_X => {
                 let ptr: u8 = pos + cpu.register_x; //todo overflow
-                let deref = cpu.memory.read_u16(ptr as u16);
-                cpu.memory.read(deref)
+                let deref = cpu.mem_read_u16(ptr as u16);
+                cpu.mem_read(deref)
             }
             AddressingMode::Indirect_Y => {
-                let deref = cpu.memory.read_u16(pos as u16) + cpu.register_y as u16;
-                cpu.memory.read(deref)
+                let deref = cpu.mem_read_u16(pos as u16) + cpu.register_y as u16;
+                cpu.mem_read(deref)
             }
             AddressingMode::Accumulator => panic!("should not reach this code"),
             AddressingMode::NoneAddressing => {
@@ -141,31 +141,31 @@ impl AddressingMode {
 
         match self {
             AddressingMode::Immediate => panic!("Immediate adressing mode is only for reading"),
-            AddressingMode::ZeroPage => cpu.memory.write(pos as u16, data),
-            AddressingMode::ZeroPage_X => cpu.memory.write((pos + cpu.register_x) as u16, data),
-            AddressingMode::ZeroPage_Y => cpu.memory.write((pos + cpu.register_y) as u16, data),
+            AddressingMode::ZeroPage => cpu.mem_write(pos as u16, data),
+            AddressingMode::ZeroPage_X => cpu.mem_write((pos + cpu.register_x) as u16, data),
+            AddressingMode::ZeroPage_Y => cpu.mem_write((pos + cpu.register_y) as u16, data),
             AddressingMode::Absolute => {
                 let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]);
-                cpu.memory.write(mem_address, data)
+                cpu.mem_write(mem_address, data)
             }
             AddressingMode::Absolute_X => {
                 let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
                     + cpu.register_x as u16;
-                cpu.memory.write(mem_address, data)
+                cpu.mem_write(mem_address, data)
             }
             AddressingMode::Absolute_Y => {
                 let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
                     + cpu.register_y as u16;
-                cpu.memory.write(mem_address, data)
+                cpu.mem_write(mem_address, data)
             }
             AddressingMode::Indirect_X => {
                 let ptr: u8 = pos + cpu.register_x; //todo overflow
-                let deref = cpu.memory.read_u16(ptr as u16);
-                cpu.memory.write(deref, data)
+                let deref = cpu.mem_read_u16(ptr as u16);
+                cpu.mem_write(deref, data)
             }
             AddressingMode::Indirect_Y => {
-                let deref = cpu.memory.read_u16(pos as u16) + cpu.register_y as u16;
-                cpu.memory.write(deref, data)
+                let deref = cpu.mem_read_u16(pos as u16) + cpu.register_y as u16;
+                cpu.mem_write(deref, data)
             }
             AddressingMode::Accumulator => {
                 panic!("shouldn't be here");
@@ -186,6 +186,7 @@ pub struct CPU {
     pub program_counter: u16,
     flags: CpuFlags,
     pub memory: Memory,
+
 }
 
 impl<'a> CPU {
@@ -285,26 +286,38 @@ impl<'a> CPU {
 
     fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        self.memory
-            .read((STACK as u16) + self.stack_pointer as u16)
+        self.mem_read((STACK as u16) + self.stack_pointer as u16)
     }
 
     fn stack_push(&mut self, data: u8) {
-        self.memory
-            .write((STACK as u16) + self.stack_pointer as u16, data);
+        self.mem_write((STACK as u16) + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
     fn stack_push_u16(&mut self, data: u16) {
-        self.memory
-            .write_u16((STACK as u16) + self.stack_pointer as u16, data);
+        self.mem_write_u16((STACK as u16) + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(2);
     }
 
     fn stack_pop_u16(&mut self) -> u16 {
         self.stack_pointer = self.stack_pointer.wrapping_add(2);
-        self.memory
-            .read_u16((STACK as u16) + self.stack_pointer as u16)
+        self.mem_read_u16((STACK as u16) + self.stack_pointer as u16)
+    }
+
+    fn mem_read(&self, pos: u16) -> u8 {
+        self.memory.read(pos)
+    }
+
+    fn mem_read_u16(&self, pos: u16) -> u16 {
+        self.memory.read_u16(pos)
+    }
+
+    fn mem_write(&mut self, pos: u16, data:u8) {
+        self.memory.write(pos, data);
+    }
+
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        self.memory.write_u16(pos, data);
     }
 
     fn compare(&mut self, mode: &AddressingMode, mem: &[u8], compare_with: u8) {
@@ -565,7 +578,7 @@ impl<'a> CPU {
                 0x6c => {
                     let mem_address =
                         LittleEndian::read_u16(&program[self.program_counter as usize..]);
-                    let indirect_ref = self.memory.read_u16(mem_address);
+                    let indirect_ref = self.mem_read_u16(mem_address);
                     self.program_counter = indirect_ref;
                     //todo: 6502 bug mode with with page boundary:
                     //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
@@ -771,9 +784,9 @@ mod test {
         cpu.interpret(&CPU::transform(
             "a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02",
         ));
-        assert_eq!(cpu.memory.read(0x0200), 01);
-        assert_eq!(cpu.memory.read(0x0201), 05);
-        assert_eq!(cpu.memory.read(0x0202), 08);
+        assert_eq!(cpu.mem_read(0x0200), 01);
+        assert_eq!(cpu.mem_read(0x0201), 05);
+        assert_eq!(cpu.mem_read(0x0202), 08);
         assert_eq!(cpu.program_counter, 15);
     }
 
@@ -783,7 +796,7 @@ mod test {
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("48"));
         assert_eq!(cpu.stack_pointer, 0xFE);
-        assert_eq!(cpu.memory.read(STACK + 0xFF), 100);
+        assert_eq!(cpu.mem_read(STACK + 0xFF), 100);
         assert_eq!(cpu.program_counter, 1);
     }
 
@@ -833,7 +846,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.register_a = 101;
         cpu.interpret(&CPU::transform("85 10"));
-        assert_eq!(cpu.memory.read(0x10), 101);
+        assert_eq!(cpu.mem_read(0x10), 101);
         assert_eq!(cpu.program_counter, 2);
     }
 
@@ -843,7 +856,7 @@ mod test {
         cpu.register_a = 101;
         cpu.register_x = 0x50;
         cpu.interpret(&CPU::transform("95 10"));
-        assert_eq!(cpu.memory.read(0x60), 101);
+        assert_eq!(cpu.mem_read(0x60), 101);
         assert_eq!(cpu.program_counter, 2);
     }
 
@@ -852,7 +865,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("8d 00 02"));
-        assert_eq!(cpu.memory.read(0x0200), 100);
+        assert_eq!(cpu.mem_read(0x0200), 100);
         assert_eq!(cpu.program_counter, 3);
     }
 
@@ -862,7 +875,7 @@ mod test {
         cpu.register_a = 101;
         cpu.register_x = 0x50;
         cpu.interpret(&CPU::transform("9d 00 11"));
-        assert_eq!(cpu.memory.read(0x1150), 101);
+        assert_eq!(cpu.mem_read(0x1150), 101);
         assert_eq!(cpu.program_counter, 3);
     }
 
@@ -872,7 +885,7 @@ mod test {
         cpu.register_a = 101;
         cpu.register_y = 0x66;
         cpu.interpret(&CPU::transform("99 00 11"));
-        assert_eq!(cpu.memory.read(0x1166), 101);
+        assert_eq!(cpu.mem_read(0x1166), 101);
         assert_eq!(cpu.program_counter, 3);
     }
 
@@ -880,13 +893,13 @@ mod test {
     fn test_0x81_sta() {
         let mut cpu = CPU::new();
         cpu.register_x = 2;
-        cpu.memory.write(0x2, 0x05);
-        cpu.memory.write(0x3, 0x07);
+        cpu.mem_write(0x2, 0x05);
+        cpu.mem_write(0x3, 0x07);
 
         cpu.register_a = 0x66;
 
         cpu.interpret(&CPU::transform("81 00"));
-        assert_eq!(cpu.memory.read(0x0705), 0x66);
+        assert_eq!(cpu.mem_read(0x0705), 0x66);
         assert_eq!(cpu.program_counter, 2);
     }
 
@@ -894,13 +907,13 @@ mod test {
     fn test_091_sta() {
         let mut cpu = CPU::new();
         cpu.register_y = 0x10;
-        cpu.memory.write(0x2, 0x05);
-        cpu.memory.write(0x3, 0x07);
+        cpu.mem_write(0x2, 0x05);
+        cpu.mem_write(0x3, 0x07);
 
         cpu.register_a = 0x66;
 
         cpu.interpret(&CPU::transform("91 02"));
-        assert_eq!(cpu.memory.read(0x0705 + 0x10), 0x66);
+        assert_eq!(cpu.mem_read(0x0705 + 0x10), 0x66);
         assert_eq!(cpu.program_counter, 2);
     }
 
@@ -1010,18 +1023,18 @@ mod test {
     #[test]
     fn test_0x06_asl_memory() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x10, 0b01000001);
+        cpu.mem_write(0x10, 0b01000001);
         cpu.interpret(&CPU::transform("06 10"));
-        assert_eq!(cpu.memory.read(0x10), 0b10000010);
+        assert_eq!(cpu.mem_read(0x10), 0b10000010);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
 
     #[test]
     fn test_0x06_asl_memory_flags() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x10, 0b10000000);
+        cpu.mem_write(0x10, 0b10000000);
         cpu.interpret(&CPU::transform("06 10"));
-        assert_eq!(cpu.memory.read(0x10), 0b0);
+        assert_eq!(cpu.mem_read(0x10), 0b0);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1031,18 +1044,18 @@ mod test {
     fn test_0xf6_inc_memory_zero_page_x() {
         let mut cpu = CPU::new();
         cpu.register_x = 1;
-        cpu.memory.write(0x10, 127);
+        cpu.mem_write(0x10, 127);
         cpu.interpret(&CPU::transform("f6 0f"));
-        assert_eq!(cpu.memory.read(0x10), 128);
+        assert_eq!(cpu.mem_read(0x10), 128);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
 
     #[test]
     fn test_0x46_lsr_memory_flags() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x10, 0b00000001);
+        cpu.mem_write(0x10, 0b00000001);
         cpu.interpret(&CPU::transform("46 10"));
-        assert_eq!(cpu.memory.read(0x10), 0b0);
+        assert_eq!(cpu.mem_read(0x10), 0b0);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1051,9 +1064,9 @@ mod test {
     #[test]
     fn test_0x2e_rol_memory_flags() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x1510, 0b10000001);
+        cpu.mem_write(0x1510, 0b10000001);
         cpu.interpret(&CPU::transform("2e 10 15"));
-        assert_eq!(cpu.memory.read(0x1510), 0b00000010);
+        assert_eq!(cpu.mem_read(0x1510), 0b00000010);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
     }
 
@@ -1061,9 +1074,9 @@ mod test {
     fn test_0x2e_rol_memory_flags_carry() {
         let mut cpu = CPU::new();
         cpu.flags.insert(CpuFlags::CARRY);
-        cpu.memory.write(0x1510, 0b00000001);
+        cpu.mem_write(0x1510, 0b00000001);
         cpu.interpret(&CPU::transform("2e 10 15"));
-        assert_eq!(cpu.memory.read(0x1510), 0b00000011);
+        assert_eq!(cpu.mem_read(0x1510), 0b00000011);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
     }
 
@@ -1071,9 +1084,9 @@ mod test {
     fn test_0x6e_ror_memory_flags_carry() {
         let mut cpu = CPU::new();
         cpu.flags.insert(CpuFlags::CARRY);
-        cpu.memory.write(0x1510, 0b01000010);
+        cpu.mem_write(0x1510, 0b01000010);
         cpu.interpret(&CPU::transform("6e 10 15"));
-        assert_eq!(cpu.memory.read(0x1510), 0b10100001);
+        assert_eq!(cpu.mem_read(0x1510), 0b10100001);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
     }
 
@@ -1081,7 +1094,7 @@ mod test {
     fn test_0x6e_zero_flag() {
         let mut cpu = CPU::new();
         cpu.flags.insert(CpuFlags::CARRY);
-        cpu.memory.write(0x1510, 0b00000001);
+        cpu.mem_write(0x1510, 0b00000001);
         cpu.interpret(&CPU::transform("6e 10 15"));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
     }
@@ -1099,7 +1112,7 @@ mod test {
     #[test]
     fn test_0xbe_ldx_absolute_y() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x1166, 55);
+        cpu.mem_write(0x1166, 55);
         cpu.register_y = 0x66;
         cpu.interpret(&CPU::transform("be 00 11"));
         assert_eq!(cpu.register_x, 55);
@@ -1108,7 +1121,7 @@ mod test {
     #[test]
     fn test_0xb4_ldy_zero_page_x() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x66, 55);
+        cpu.mem_write(0x66, 55);
         cpu.register_x = 0x06;
         cpu.interpret(&CPU::transform("b4 60"));
         assert_eq!(cpu.register_y, 55);
@@ -1135,8 +1148,8 @@ mod test {
     #[test]
     fn test_0x6c_jmp_indirect() {
         let mut cpu = CPU::new();
-        cpu.memory.write(0x0120, 0xfc);
-        cpu.memory.write(0x0121, 0xba);
+        cpu.mem_write(0x0120, 0xfc);
+        cpu.mem_write(0x0121, 0xba);
         cpu.interpret(&CPU::transform("6c 20 01"));
         assert_eq!(cpu.program_counter, 0xbafc);
     }
@@ -1321,7 +1334,7 @@ mod test {
     fn test_0x24_bit() {
         let mut cpu = CPU::new();
         cpu.register_a = 0b00000010;
-        cpu.memory.write(0x10, 0b10111101);
+        cpu.mem_write(0x10, 0b10111101);
         cpu.interpret(&CPU::transform("24 10"));
 
         assert!(cpu.flags.contains(CpuFlags::ZERO));

@@ -16,9 +16,9 @@ fn main() {
     println!("{}", rom.prg_rom.len());
 
     cpu.memory.space[0..rom.prg_rom.len()].copy_from_slice(&rom.prg_rom);
-    // let ololo = &cpu.memory.space[0x6000..(0x6000 + 1024)];
+    // let ololo = &cpu.memory()space[0x6000..(0x6000 + 1024)];
     //
 
     cpu.interpret(&cpu.memory.space.clone());
-    // let ololo = &cpu.memory.space[0x6000..(0x6000 + 1024)];
+    // let ololo = &cpu.memory()space[0x6000..(0x6000 + 1024)];
 }
