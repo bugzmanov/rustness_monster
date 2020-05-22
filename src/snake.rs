@@ -32,9 +32,6 @@ fn main() {
     // for i in asm.program {
     // write!(file, "{}\n", i);
     // }
-    //
-    cpu.program_counter = 0x600;
-    memory.borrow_mut().space[0x600..(snake_u8.len() + 0x600)].copy_from_slice(&snake_u8);
 
     let screen = Screen::new();
     let stdout = std::io::stdout();
@@ -47,7 +44,7 @@ fn main() {
 
     screen.clear(&mut handle);
 
-    nes_loop(memory.clone(), &mut cpu, &screen, &mut handle);
+    nes_loop(&snake_u8, memory.clone(), &mut cpu, &screen, &mut handle);
 
     loop {
         if let Ok(true) = poll(Duration::from_millis(1)) {
@@ -72,7 +69,8 @@ fn main() {
 }
 
 fn nes_loop(
-    program: Rc<RefCell<Memory>>,
+    game: &[u8],
+    memory: Rc<RefCell<Memory>>,
     entry: &mut CPU,
     screen: &Screen,
     handle: &mut impl Write,
@@ -80,25 +78,29 @@ fn nes_loop(
     let mut rng = rand::thread_rng();
     let mut buff = vec![0; 1024];
 
-    let asm = disasm::Disasm::new(&program.borrow().space, entry.program_counter as usize);
-    let program_text = program.borrow().space.clone();
-
-    entry.interpret_fn(&program_text, |cpu| {
+    // let mut asm = disasm::Disasm::new(&memory.borrow().space, entry.program_counter as usize);
+    let mut asm: Option<disasm::Disasm> = None;
+    entry.test_interpret_fn(game, 0x600, |cpu| {
         for x in 0..(4 * 32 * 8) {
             let mem = 0x0200 + (x as u16) as usize;
             let y = (x as u16) / 32;
-            if program.borrow().space[mem] != 0 || buff[x] != 0 {
+            if memory.borrow().space[mem] != 0 || buff[x] != 0 {
                 screen.draw(
                     handle,
                     (x % 32) as u16,
                     y,
-                    Color::AnsiValue(program.borrow().space[mem]),
+                    Color::AnsiValue(memory.borrow().space[mem]),
                 );
             }
         }
 
-        buff.copy_from_slice(&program.borrow().space[0x0200..0x600]);
+        buff.copy_from_slice(&memory.borrow().space[0x0200..0x600]);
 
+        if asm.is_none() {
+            asm = Some(disasm::Disasm::new(&memory.borrow().space, 0x600 as usize));
+        }
+
+        let asm = asm.as_ref().unwrap();
         let (code, position) = asm.slice(cpu.program_counter);
         for i in 0..code.len() {
             if i == position {
@@ -124,16 +126,16 @@ fn nes_loop(
             match read().unwrap() {
                 Event::Key(event) => {
                     if event.code == KeyCode::Down {
-                        program.borrow_mut().space[0xff] = 0x73;
+                        memory.borrow_mut().space[0xff] = 0x73;
                     }
                     if event.code == KeyCode::Up {
-                        program.borrow_mut().space[0xff] = 0x77;
+                        memory.borrow_mut().space[0xff] = 0x77;
                     }
                     if event.code == KeyCode::Left {
-                        program.borrow_mut().space[0xff] = 0x61;
+                        memory.borrow_mut().space[0xff] = 0x61;
                     }
                     if event.code == KeyCode::Right {
-                        program.borrow_mut().space[0xff] = 0x64;
+                        memory.borrow_mut().space[0xff] = 0x64;
                     }
 
                     if event.code == KeyCode::Char('x') {
@@ -151,6 +153,6 @@ fn nes_loop(
             }
         }
 
-        program.borrow_mut().space[0xfe] = rng.gen();
+        memory.borrow_mut().space[0xfe] = rng.gen();
     });
 }

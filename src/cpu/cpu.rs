@@ -1,5 +1,5 @@
 // https://skilldrick.github.io/easy6502/
-use crate::{cpu::opscode};
+use crate::cpu::opscode;
 use byteorder::{ByteOrder, LittleEndian};
 use hex;
 use std::collections::HashMap;
@@ -108,36 +108,37 @@ pub enum AddressingMode {
     Absolute,
     Absolute_X,
     Absolute_Y,
-    // Indirect,
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
 }
 
 impl AddressingMode {
-    pub fn read_u8<'a>(&self, mem: &[u8], cpu: &CPU<'a>) -> u8 {
+    pub fn read_u8<'a>(&self, cpu: &CPU<'a>) -> u8 {
         if let AddressingMode::Accumulator = self {
             return cpu.register_a;
         }
 
-        let pos: u8 = mem[cpu.program_counter as usize];
+        let pos: u8 = cpu.mem_read(cpu.program_counter);
         match self {
             AddressingMode::Immediate => pos,
             AddressingMode::ZeroPage => cpu.mem_read(ZERO_PAGE + pos as u16),
-            AddressingMode::ZeroPage_X => cpu.mem_read(ZERO_PAGE + pos as u16 + cpu.register_x as u16),
-            AddressingMode::ZeroPage_Y => cpu.mem_read(ZERO_PAGE + pos as u16 + cpu.register_y as u16),
+            AddressingMode::ZeroPage_X => {
+                cpu.mem_read(ZERO_PAGE + pos as u16 + cpu.register_x as u16)
+            }
+            AddressingMode::ZeroPage_Y => {
+                cpu.mem_read(ZERO_PAGE + pos as u16 + cpu.register_y as u16)
+            }
             AddressingMode::Absolute => {
-                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]);
+                let mem_address = cpu.mem_read_u16(cpu.program_counter);
                 cpu.mem_read(mem_address)
             }
             AddressingMode::Absolute_X => {
-                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
-                    + cpu.register_x as u16;
+                let mem_address = cpu.mem_read_u16(cpu.program_counter) + cpu.register_x as u16;
                 cpu.mem_read(mem_address)
             }
             AddressingMode::Absolute_Y => {
-                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
-                    + cpu.register_y as u16;
+                let mem_address = cpu.mem_read_u16(cpu.program_counter) + cpu.register_y as u16;
                 cpu.mem_read(mem_address)
             }
 
@@ -157,13 +158,13 @@ impl AddressingMode {
         }
     }
 
-    pub fn write_u8(&self, mem: &[u8], cpu: &mut CPU, data: u8) {
+    pub fn write_u8(&self, cpu: &mut CPU, data: u8) {
         if let AddressingMode::Accumulator = self {
             cpu.set_register_a(data);
             return;
         }
 
-        let pos: u8 = mem[cpu.program_counter as usize];
+        let pos: u8 = cpu.mem_read(cpu.program_counter);
 
         match self {
             AddressingMode::Immediate => panic!("Immediate adressing mode is only for reading"),
@@ -171,17 +172,15 @@ impl AddressingMode {
             AddressingMode::ZeroPage_X => cpu.mem_write((pos + cpu.register_x) as u16, data),
             AddressingMode::ZeroPage_Y => cpu.mem_write((pos + cpu.register_y) as u16, data),
             AddressingMode::Absolute => {
-                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..]);
+                let mem_address = cpu.mem_read_u16(cpu.program_counter);
                 cpu.mem_write(mem_address, data)
             }
             AddressingMode::Absolute_X => {
-                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
-                    + cpu.register_x as u16;
+                let mem_address = cpu.mem_read_u16(cpu.program_counter) + cpu.register_x as u16;
                 cpu.mem_write(mem_address, data)
             }
             AddressingMode::Absolute_Y => {
-                let mem_address = LittleEndian::read_u16(&mem[cpu.program_counter as usize..])
-                    + cpu.register_y as u16;
+                let mem_address = cpu.mem_read_u16(cpu.program_counter) + cpu.register_y as u16;
                 cpu.mem_write(mem_address, data)
             }
             AddressingMode::Indirect_X => {
@@ -195,10 +194,9 @@ impl AddressingMode {
             }
             AddressingMode::Accumulator => {
                 panic!("shouldn't be here");
-                // cpu.set_register_a(data)
             }
             AddressingMode::NoneAddressing => {
-                panic!("AddressingMode::NoneAddressing shouldn't be used to read data")
+                panic!("AddressingMode::NoneAddressing shouldn't be used to write data")
             }
         }
     }
@@ -345,8 +343,8 @@ impl<'a> CPU<'a> {
         self.memory.write_u16(pos, data);
     }
 
-    fn compare(&mut self, mode: &AddressingMode, mem: &[u8], compare_with: u8) {
-        let data = mode.read_u8(&mem[..], self);
+    fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
+        let data = mode.read_u8(self);
         if data <= compare_with {
             self.flags.insert(CpuFlags::CARRY);
         }
@@ -354,9 +352,9 @@ impl<'a> CPU<'a> {
         self._udpate_cpu_flags(compare_with.wrapping_sub(data));
     }
 
-    fn branch(&mut self, mem: &[u8], condition: bool) {
+    fn branch(&mut self, condition: bool) {
         if condition {
-            let jump: i8 = mem[(self.program_counter) as usize] as i8;
+            let jump: i8 = self.mem_read(self.program_counter) as i8;
             self.program_counter = self
                 .program_counter
                 .wrapping_add(1)
@@ -364,19 +362,32 @@ impl<'a> CPU<'a> {
         }
     }
 
-    pub fn interpret(&mut self, program: &[u8]) {
-        self.interpret_fn(program, |_| {});
+    pub fn interpret(&mut self, program: &[u8], mem_start: u16) {
+        self.test_interpret_fn(program, mem_start, |_| {});
     }
 
-    pub fn interpret_fn<F>(&mut self, program: &[u8], mut callback_opt: F)
+    pub fn test_interpret_fn<F>(&mut self, program: &[u8], mem_start: u16, callback_opt: F)
+    where
+        F: FnMut(&mut CPU),
+    {
+        self.program_counter = mem_start;
+        let mut pos = self.program_counter;
+        for x in program {
+            self.mem_write(pos, *x);
+            pos += 1;
+        }
+        self.interpret_fn(mem_start as usize + program.len(), callback_opt);
+    }
+
+    pub fn interpret_fn<F>(&mut self, program_end: usize, mut callback_opt: F)
+    //todo: program end is not needed
     where
         F: FnMut(&mut CPU),
     {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
-        while (self.program_counter as usize) < program.len() {
-            let begin = self.program_counter as usize;
-            let code = &program[begin];
-            let ops = opscodes.get(code).unwrap();
+        while (self.program_counter as usize) < program_end {
+            let code = self.mem_read(self.program_counter);
+            let ops = opscodes.get(&code).unwrap();
 
             self.program_counter += 1;
             let program_counter_state = self.program_counter;
@@ -392,7 +403,7 @@ impl<'a> CPU<'a> {
             // };
             // println!("{:x}: {} {}", self.program_counter, ops.mnemonic, tmp);
 
-            match program[begin] {
+            match code {
                 /* BRK */
                 0x00 => {
                     self.flags.insert(CpuFlags::BREAK);
@@ -447,63 +458,63 @@ impl<'a> CPU<'a> {
 
                 /* ADC */
                 0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.add_to_register_a(data);
                 }
 
                 /* SBC */
                 0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.sub_from_register_a(data);
                 }
 
                 /* AND */
                 0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.and_with_register_a(data);
                 }
 
                 /* EOR */
                 0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.xor_with_register_a(data);
                 }
 
                 /* ORA */
                 0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.or_with_register_a(data);
                 }
 
                 /* LSR */
                 0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
-                    let mut data = ops.mode.read_u8(&program[..], self);
+                    let mut data = ops.mode.read_u8(self);
                     if data & 1 == 1 {
                         self.set_carry_flag();
                     } else {
                         self.clear_carry_flag();
                     }
                     data = data >> 1;
-                    ops.mode.write_u8(&program[..], self, data);
+                    ops.mode.write_u8(self, data);
                     self._udpate_cpu_flags(data)
                 }
 
                 /* ASL */
                 0x0a | 0x06 | 0x16 | 0x0e | 0x1e => {
-                    let mut data = ops.mode.read_u8(&program[..], self);
+                    let mut data = ops.mode.read_u8(self);
                     if data >> 7 == 1 {
                         self.set_carry_flag();
                     } else {
                         self.clear_carry_flag();
                     }
                     data = data << 1;
-                    ops.mode.write_u8(&program[..], self, data);
+                    ops.mode.write_u8(self, data);
                     self._udpate_cpu_flags(data)
                 }
 
                 /* ROL */
                 0x2a | 0x26 | 0x36 | 0x2e | 0x3e => {
-                    let mut data = ops.mode.read_u8(&program[..], self);
+                    let mut data = ops.mode.read_u8(self);
                     let old_carry = self.flags.contains(CpuFlags::CARRY);
 
                     if data >> 7 == 1 {
@@ -515,13 +526,13 @@ impl<'a> CPU<'a> {
                     if old_carry {
                         data = data | 1;
                     }
-                    ops.mode.write_u8(&program[..], self, data);
+                    ops.mode.write_u8(self, data);
                     self._update_negative_flag(data)
                 }
 
                 /* ROR */
                 0x6a | 0x66 | 0x76 | 0x6e | 0x7e => {
-                    let mut data = ops.mode.read_u8(&program[..], self);
+                    let mut data = ops.mode.read_u8(self);
                     let old_carry = self.flags.contains(CpuFlags::CARRY);
 
                     if data & 1 == 1 {
@@ -533,15 +544,15 @@ impl<'a> CPU<'a> {
                     if old_carry {
                         data = data | 0b10000000;
                     }
-                    ops.mode.write_u8(&program[..], self, data);
+                    ops.mode.write_u8(self, data);
                     self._update_negative_flag(data)
                 }
 
                 /* INC */
                 0xe6 | 0xf6 | 0xee | 0xfe => {
-                    let mut data = ops.mode.read_u8(&program[..], self);
+                    let mut data = ops.mode.read_u8(self);
                     data = data.wrapping_add(1);
-                    ops.mode.write_u8(&program[..], self, data);
+                    ops.mode.write_u8(self, data);
                     self._udpate_cpu_flags(data);
                 }
                 /* INX */
@@ -559,9 +570,9 @@ impl<'a> CPU<'a> {
                 /* DEC */
                 0xc6 | 0xd6 | 0xce | 0xde => {
                     //todo tests
-                    let mut data = ops.mode.read_u8(&program[..], self);
+                    let mut data = ops.mode.read_u8(self);
                     data = data.wrapping_sub(1);
-                    ops.mode.write_u8(&program[..], self, data);
+                    ops.mode.write_u8(self, data);
                     self._udpate_cpu_flags(data);
                 }
 
@@ -581,28 +592,26 @@ impl<'a> CPU<'a> {
 
                 /* CMP */
                 0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
-                    self.compare(&ops.mode, &program[..], self.register_a);
+                    self.compare(&ops.mode, self.register_a);
                 }
 
                 /* CPY */ //todo tests
                 0xc0 | 0xc4 | 0xcc => {
-                    self.compare(&ops.mode, &program[..], self.register_y);
+                    self.compare(&ops.mode, self.register_y);
                 }
 
                 /* CPX */ //todo tests
-                0xe0 | 0xe4 | 0xec => self.compare(&ops.mode, &program[..], self.register_x),
+                0xe0 | 0xe4 | 0xec => self.compare(&ops.mode, self.register_x),
 
                 /* JMP Absolute */
                 0x4c => {
-                    let mem_address =
-                        LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                    let mem_address = self.mem_read_u16(self.program_counter);
                     self.program_counter = mem_address;
                 }
 
                 /* JMP Indirect */
                 0x6c => {
-                    let mem_address =
-                        LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                    let mem_address = self.mem_read_u16(self.program_counter);
                     let indirect_ref = self.mem_read_u16(mem_address);
                     self.program_counter = indirect_ref;
                     //todo: 6502 bug mode with with page boundary:
@@ -614,8 +623,7 @@ impl<'a> CPU<'a> {
                 /* JSR */
                 0x20 => {
                     self.stack_push_u16(self.program_counter + 2 - 1);
-                    let target_address =
-                        LittleEndian::read_u16(&program[self.program_counter as usize..]);
+                    let target_address = self.mem_read_u16(self.program_counter);
                     self.program_counter = target_address
                 }
 
@@ -632,47 +640,47 @@ impl<'a> CPU<'a> {
 
                 /* BNE */
                 0xd0 => {
-                    self.branch(&program[..], !self.flags.contains(CpuFlags::ZERO));
+                    self.branch(!self.flags.contains(CpuFlags::ZERO));
                 }
 
                 /* BVS */
                 0x70 => {
-                    self.branch(&program[..], self.flags.contains(CpuFlags::OVERFLOW));
+                    self.branch(self.flags.contains(CpuFlags::OVERFLOW));
                 }
 
                 /* BVC */
                 0x50 => {
-                    self.branch(&program[..], !self.flags.contains(CpuFlags::OVERFLOW));
+                    self.branch(!self.flags.contains(CpuFlags::OVERFLOW));
                 }
 
                 /* BPL */
                 0x10 => {
-                    self.branch(&program[..], !self.flags.contains(CpuFlags::NEGATIV));
+                    self.branch(!self.flags.contains(CpuFlags::NEGATIV));
                 }
 
                 /* BMI */
                 0x30 => {
-                    self.branch(&program[..], self.flags.contains(CpuFlags::NEGATIV));
+                    self.branch(self.flags.contains(CpuFlags::NEGATIV));
                 }
 
                 /* BEQ */
                 0xf0 => {
-                    self.branch(&program[..], self.flags.contains(CpuFlags::ZERO));
+                    self.branch(self.flags.contains(CpuFlags::ZERO));
                 }
 
                 /* BCS */
                 0xb0 => {
-                    self.branch(&program[..], self.flags.contains(CpuFlags::CARRY));
+                    self.branch(self.flags.contains(CpuFlags::CARRY));
                 }
 
                 /* BCC */
                 0x90 => {
-                    self.branch(&program[..], !self.flags.contains(CpuFlags::CARRY));
+                    self.branch(!self.flags.contains(CpuFlags::CARRY));
                 }
 
                 /* BIT */
                 0x24 | 0x2c => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     let and = self.register_a & data;
                     if and == 0 {
                         self.flags.insert(CpuFlags::ZERO);
@@ -686,37 +694,37 @@ impl<'a> CPU<'a> {
 
                 /* STA */
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
-                    ops.mode.write_u8(&program[..], self, self.register_a);
+                    ops.mode.write_u8(self, self.register_a);
                 }
 
                 /* STX */
                 0x86 | 0x96 | 0x8e => {
                     //todo tests
-                    ops.mode.write_u8(&program[..], self, self.register_x);
+                    ops.mode.write_u8(self, self.register_x);
                 }
 
                 /* STY */
                 0x84 | 0x94 | 0x8c => {
                     //todo tests
-                    ops.mode.write_u8(&program[..], self, self.register_y);
+                    ops.mode.write_u8(self, self.register_y);
                 }
 
                 /* LDA */
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
                     //todo: tests
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.set_register_a(data);
                 }
 
                 /* LDX */
                 0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.set_register_x(data);
                 }
 
                 /* LDY */
                 0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
-                    let data = ops.mode.read_u8(&program[..], self);
+                    let data = ops.mode.read_u8(self);
                     self.set_register_y(data);
                 }
 
@@ -763,6 +771,7 @@ impl<'a> CPU<'a> {
                 _ => panic!("Unknown ops code"),
             }
 
+            // if there were no jumps, advance program counter
             // todo: find more elegant way
             if program_counter_state == self.program_counter {
                 self.program_counter += (ops.len - 1) as u16;
@@ -772,7 +781,6 @@ impl<'a> CPU<'a> {
             callback_opt(self);
         }
     }
-
 
     pub fn new<'b>(_mem: &'b mut dyn Mem) -> CPU<'b> {
         return CPU {
@@ -800,22 +808,23 @@ mod test {
     fn test_0xa9_load_into_register_a() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform("a9 8d"));
+        cpu.interpret(&CPU::transform("a9 8d"), 100);
         assert_eq!(cpu.register_a, 0x8d);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
     }
 
     #[test]
     fn test_larger_program() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform(
-            "a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02",
-        ));
+        cpu.interpret(
+            &CPU::transform("a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02"),
+            100,
+        );
         assert_eq!(cpu.mem_read(0x0200), 01);
         assert_eq!(cpu.mem_read(0x0201), 05);
         assert_eq!(cpu.mem_read(0x0202), 08);
-        assert_eq!(cpu.program_counter, 15);
+        assert_eq!(cpu.program_counter, 115);
     }
 
     #[test]
@@ -823,27 +832,27 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 100;
-        cpu.interpret(&CPU::transform("48"));
+        cpu.interpret(&CPU::transform("48"), 100);
         assert_eq!(cpu.stack_pointer, 0xFE);
         assert_eq!(cpu.mem_read(STACK + 0xFF), 100);
-        assert_eq!(cpu.program_counter, 1);
+        assert_eq!(cpu.program_counter, 101);
     }
 
     #[test]
     fn test_0x68_pla() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform("a9 ff 48 a9 00 68"));
+        cpu.interpret(&CPU::transform("a9 ff 48 a9 00 68"), 100);
         assert_eq!(cpu.stack_pointer, 0xFF);
         assert_eq!(cpu.register_a, 0xff);
-        assert_eq!(cpu.program_counter, 6);
+        assert_eq!(cpu.program_counter, 106);
     }
 
     #[test]
     fn test_0x48_pla_flags() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform("a9 00 48 a9 01 68"));
+        cpu.interpret(&CPU::transform("a9 00 48 a9 01 68"), 100);
         assert!(cpu.flags.contains(CpuFlags::ZERO));
     }
 
@@ -851,7 +860,7 @@ mod test {
     fn test_stack_overflowing() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform("68"));
+        cpu.interpret(&CPU::transform("68"), 100);
     }
 
     #[test]
@@ -860,9 +869,9 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
-        cpu.interpret(&CPU::transform("18"));
+        cpu.interpret(&CPU::transform("18"), 100);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
-        assert_eq!(cpu.program_counter, 1);
+        assert_eq!(cpu.program_counter, 101);
     }
 
     #[test]
@@ -870,9 +879,9 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
-        cpu.interpret(&CPU::transform("38"));
+        cpu.interpret(&CPU::transform("38"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
-        assert_eq!(cpu.program_counter, 1);
+        assert_eq!(cpu.program_counter, 101);
     }
 
     #[test]
@@ -880,9 +889,9 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
-        cpu.interpret(&CPU::transform("85 10"));
+        cpu.interpret(&CPU::transform("85 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 101);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
     }
 
     #[test]
@@ -891,9 +900,9 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.register_x = 0x50;
-        cpu.interpret(&CPU::transform("95 10"));
+        cpu.interpret(&CPU::transform("95 10"), 100);
         assert_eq!(cpu.mem_read(0x60), 101);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
     }
 
     #[test]
@@ -901,9 +910,9 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 100;
-        cpu.interpret(&CPU::transform("8d 00 02"));
+        cpu.interpret(&CPU::transform("8d 00 02"), 100);
         assert_eq!(cpu.mem_read(0x0200), 100);
-        assert_eq!(cpu.program_counter, 3);
+        assert_eq!(cpu.program_counter, 103);
     }
 
     #[test]
@@ -912,9 +921,9 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.register_x = 0x50;
-        cpu.interpret(&CPU::transform("9d 00 11"));
+        cpu.interpret(&CPU::transform("9d 00 11"), 100);
         assert_eq!(cpu.mem_read(0x1150), 101);
-        assert_eq!(cpu.program_counter, 3);
+        assert_eq!(cpu.program_counter, 103);
     }
 
     #[test]
@@ -923,9 +932,9 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.register_y = 0x66;
-        cpu.interpret(&CPU::transform("99 00 11"));
+        cpu.interpret(&CPU::transform("99 00 11"), 100);
         assert_eq!(cpu.mem_read(0x1166), 101);
-        assert_eq!(cpu.program_counter, 3);
+        assert_eq!(cpu.program_counter, 103);
     }
 
     #[test]
@@ -938,9 +947,9 @@ mod test {
 
         cpu.register_a = 0x66;
 
-        cpu.interpret(&CPU::transform("81 00"));
+        cpu.interpret(&CPU::transform("81 00"), 100);
         assert_eq!(cpu.mem_read(0x0705), 0x66);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
     }
 
     #[test]
@@ -953,9 +962,9 @@ mod test {
 
         cpu.register_a = 0x66;
 
-        cpu.interpret(&CPU::transform("91 02"));
+        cpu.interpret(&CPU::transform("91 02"), 100);
         assert_eq!(cpu.mem_read(0x0705 + 0x10), 0x66);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
     }
 
     #[test]
@@ -963,9 +972,9 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x10;
-        cpu.interpret(&CPU::transform("69 02"));
+        cpu.interpret(&CPU::transform("69 02"), 100);
         assert_eq!(cpu.register_a, 0x12);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
     }
 
     #[test]
@@ -973,7 +982,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x81;
-        cpu.interpret(&CPU::transform("69 7f"));
+        cpu.interpret(&CPU::transform("69 7f"), 100);
         assert_eq!(cpu.register_a, 0x0);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
@@ -985,7 +994,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x8a;
-        cpu.interpret(&CPU::transform("69 8a"));
+        cpu.interpret(&CPU::transform("69 8a"), 100);
         assert_eq!(cpu.register_a, 0x14);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
@@ -996,9 +1005,9 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x10;
-        cpu.interpret(&CPU::transform("e9 02"));
+        cpu.interpret(&CPU::transform("e9 02"), 100);
         assert_eq!(cpu.register_a, 0x0d);
-        assert_eq!(cpu.program_counter, 2);
+        assert_eq!(cpu.program_counter, 102);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
@@ -1009,7 +1018,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x02;
-        cpu.interpret(&CPU::transform("e9 03"));
+        cpu.interpret(&CPU::transform("e9 03"), 100);
         assert_eq!(cpu.register_a, 0xfe);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1020,7 +1029,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x50;
-        cpu.interpret(&CPU::transform("e9 b0"));
+        cpu.interpret(&CPU::transform("e9 b0"), 100);
         assert_eq!(cpu.register_a, 0x9f);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1032,7 +1041,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
-        cpu.interpret(&CPU::transform("29 90")); //0b10010000
+        cpu.interpret(&CPU::transform("29 90"), 100); //0b10010000
         assert_eq!(cpu.register_a, 0b10010000);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
@@ -1043,7 +1052,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
-        cpu.interpret(&CPU::transform("49 07")); //0b00000111
+        cpu.interpret(&CPU::transform("49 07"), 100); //0b00000111
         assert_eq!(cpu.register_a, 0b11010101);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
@@ -1054,7 +1063,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
-        cpu.interpret(&CPU::transform("09 07")); //0b00000111
+        cpu.interpret(&CPU::transform("09 07"), 100); //0b00000111
         assert_eq!(cpu.register_a, 0b11010111);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
@@ -1065,8 +1074,8 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
-        cpu.interpret(&CPU::transform("0a"));
-        assert_eq!(cpu.program_counter, 1);
+        cpu.interpret(&CPU::transform("0a"), 100);
+        assert_eq!(cpu.program_counter, 101);
         assert_eq!(cpu.register_a, 0b10100100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
     }
@@ -1076,7 +1085,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x10, 0b01000001);
-        cpu.interpret(&CPU::transform("06 10"));
+        cpu.interpret(&CPU::transform("06 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 0b10000010);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
@@ -1086,7 +1095,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x10, 0b10000000);
-        cpu.interpret(&CPU::transform("06 10"));
+        cpu.interpret(&CPU::transform("06 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 0b0);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
@@ -1099,7 +1108,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 1;
         cpu.mem_write(0x10, 127);
-        cpu.interpret(&CPU::transform("f6 0f"));
+        cpu.interpret(&CPU::transform("f6 0f"), 100);
         assert_eq!(cpu.mem_read(0x10), 128);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
@@ -1109,7 +1118,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x10, 0b00000001);
-        cpu.interpret(&CPU::transform("46 10"));
+        cpu.interpret(&CPU::transform("46 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 0b0);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
@@ -1121,7 +1130,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x1510, 0b10000001);
-        cpu.interpret(&CPU::transform("2e 10 15"));
+        cpu.interpret(&CPU::transform("2e 10 15"), 100);
         assert_eq!(cpu.mem_read(0x1510), 0b00000010);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
     }
@@ -1132,7 +1141,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b00000001);
-        cpu.interpret(&CPU::transform("2e 10 15"));
+        cpu.interpret(&CPU::transform("2e 10 15"), 100);
         assert_eq!(cpu.mem_read(0x1510), 0b00000011);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
     }
@@ -1143,7 +1152,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b01000010);
-        cpu.interpret(&CPU::transform("6e 10 15"));
+        cpu.interpret(&CPU::transform("6e 10 15"), 100);
         assert_eq!(cpu.mem_read(0x1510), 0b10100001);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
     }
@@ -1154,7 +1163,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b00000001);
-        cpu.interpret(&CPU::transform("6e 10 15"));
+        cpu.interpret(&CPU::transform("6e 10 15"), 100);
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
     }
 
@@ -1163,7 +1172,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 1;
-        cpu.interpret(&CPU::transform("6a"));
+        cpu.interpret(&CPU::transform("6a"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert_eq!(cpu.register_a, 0);
@@ -1175,7 +1184,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x1166, 55);
         cpu.register_y = 0x66;
-        cpu.interpret(&CPU::transform("be 00 11"));
+        cpu.interpret(&CPU::transform("be 00 11"), 100);
         assert_eq!(cpu.register_x, 55);
     }
 
@@ -1185,7 +1194,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x66, 55);
         cpu.register_x = 0x06;
-        cpu.interpret(&CPU::transform("b4 60"));
+        cpu.interpret(&CPU::transform("b4 60"), 100);
         assert_eq!(cpu.register_y, 55);
     }
 
@@ -1194,7 +1203,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_y = 127;
-        cpu.interpret(&CPU::transform("c8"));
+        cpu.interpret(&CPU::transform("c8"), 100);
         assert_eq!(cpu.register_y, 128);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
@@ -1204,7 +1213,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 0xff;
-        cpu.interpret(&CPU::transform("e8"));
+        cpu.interpret(&CPU::transform("e8"), 100);
         assert_eq!(cpu.register_x, 0);
         assert!(cpu.flags.contains(CpuFlags::ZERO));
     }
@@ -1215,7 +1224,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x0120, 0xfc);
         cpu.mem_write(0x0121, 0xba);
-        cpu.interpret(&CPU::transform("6c 20 01"));
+        cpu.interpret(&CPU::transform("6c 20 01"), 100);
         assert_eq!(cpu.program_counter, 0xbafc);
     }
 
@@ -1223,7 +1232,7 @@ mod test {
     fn test_0x4c_jmp_absolute() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform("4c 34 12"));
+        cpu.interpret(&CPU::transform("4c 34 12"), 100);
         assert_eq!(cpu.program_counter, 0x1234);
     }
 
@@ -1238,8 +1247,8 @@ mod test {
         cpu.register_x = 2;
         cpu.register_a = 3;
 
-        cpu.interpret(&CPU::transform("ea"));
-        assert_eq!(cpu.program_counter, 1);
+        cpu.interpret(&CPU::transform("ea"), 100);
+        assert_eq!(cpu.program_counter, 101);
         assert_eq!(cpu.register_y, 1);
         assert_eq!(cpu.register_x, 2);
         assert_eq!(cpu.register_a, 3);
@@ -1252,7 +1261,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 66;
-        cpu.interpret(&CPU::transform("aa"));
+        cpu.interpret(&CPU::transform("aa"), 100);
         assert_eq!(cpu.register_x, 66);
     }
 
@@ -1261,7 +1270,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 66;
-        cpu.interpret(&CPU::transform("a8"));
+        cpu.interpret(&CPU::transform("a8"), 100);
         assert_eq!(cpu.register_y, 66);
     }
 
@@ -1269,7 +1278,7 @@ mod test {
     fn test_0xba_tsx() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        cpu.interpret(&CPU::transform("ba"));
+        cpu.interpret(&CPU::transform("ba"), 100);
         assert_eq!(cpu.register_x, 0xff);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
@@ -1279,7 +1288,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 66;
-        cpu.interpret(&CPU::transform("8a"));
+        cpu.interpret(&CPU::transform("8a"), 100);
         assert_eq!(cpu.register_a, 66);
     }
 
@@ -1288,7 +1297,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 0;
-        cpu.interpret(&CPU::transform("9a"));
+        cpu.interpret(&CPU::transform("9a"), 100);
         assert_eq!(cpu.stack_pointer, 0);
         assert!(!cpu.flags.contains(CpuFlags::ZERO)); // should not affect flags
     }
@@ -1298,7 +1307,7 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_y = 66;
-        cpu.interpret(&CPU::transform("98"));
+        cpu.interpret(&CPU::transform("98"), 100);
         assert_eq!(cpu.register_a, 66);
     }
 
@@ -1306,8 +1315,8 @@ mod test {
     fn test_0x20_jsr() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
-        let pc = cpu.program_counter;
-        cpu.interpret(&CPU::transform("20 04 06"));
+        let pc = 100; //cpu.program_counter;
+        cpu.interpret(&CPU::transform("20 04 06"), 100);
         assert_eq!(cpu.program_counter, 0x604);
         assert_eq!(cpu.stack_pointer, 0xff - 0x2);
         let return_pos = cpu.stack_pop_u16();
@@ -1326,8 +1335,8 @@ mod test {
             LDX #$05
             RTS
         */
-        cpu.interpret(&CPU::transform("20 04 00 00 a2 05 60"));
-        assert_eq!(cpu.program_counter, 0x04);
+        cpu.interpret(&CPU::transform("20 68 00 00 a2 05 60"), 100);
+        assert_eq!(cpu.program_counter, 104);
         assert_eq!(cpu.stack_pointer, 0xff);
         assert_eq!(cpu.register_x, 0x5);
     }
@@ -1343,7 +1352,7 @@ mod test {
 
         cpu.flags.bits = 0;
         cpu.program_counter = 0;
-        cpu.interpret(&CPU::transform("40"));
+        cpu.interpret(&CPU::transform("40"), 100);
 
         assert_eq!(cpu.flags.bits, 0b11000001);
         assert_eq!(cpu.program_counter, 0x100);
@@ -1354,25 +1363,25 @@ mod test {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x6;
-        cpu.interpret(&CPU::transform("c9 05"));
+        cpu.interpret(&CPU::transform("c9 05"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
 
         cpu.program_counter = 0;
         cpu.flags.bits = 0;
-        cpu.interpret(&CPU::transform("c9 06"));
+        cpu.interpret(&CPU::transform("c9 06"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(cpu.flags.contains(CpuFlags::ZERO));
 
         cpu.program_counter = 0;
         cpu.flags.bits = 0;
-        cpu.interpret(&CPU::transform("c9 07"));
+        cpu.interpret(&CPU::transform("c9 07"), 100);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
 
         cpu.program_counter = 0;
         cpu.flags.bits = 0;
-        cpu.interpret(&CPU::transform("c9 90"));
+        cpu.interpret(&CPU::transform("c9 90"), 100);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1382,14 +1391,15 @@ mod test {
     fn test_0xd0_bne() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
+        // jump
         cpu.flags.remove(CpuFlags::ZERO);
-        cpu.interpret(&CPU::transform("d0 04"));
-        assert_eq!(cpu.program_counter, 0x06);
+        cpu.interpret(&CPU::transform("d0 04"), 100);
+        assert_eq!(cpu.program_counter, 100 + 0x6);
 
-        cpu.program_counter = 0;
+        // no jump
         cpu.flags.insert(CpuFlags::ZERO);
-        cpu.interpret(&CPU::transform("d0 04"));
-        assert_eq!(cpu.program_counter, 0x02);
+        cpu.interpret(&CPU::transform("d0 04"), 100);
+        assert_eq!(cpu.program_counter, 100 + 0x02);
     }
 
     #[test]
@@ -1405,7 +1415,7 @@ mod test {
             BNE decrement
             BRK
         */
-        cpu.interpret(&CPU::transform("a2 08 ca c8 e0 03 d0 fa 00"));
+        cpu.interpret(&CPU::transform("a2 08 ca c8 e0 03 d0 fa 00"), 100);
         assert_eq!(cpu.register_y, 5);
     }
 
@@ -1415,7 +1425,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b00000010;
         cpu.mem_write(0x10, 0b10111101);
-        cpu.interpret(&CPU::transform("24 10"));
+        cpu.interpret(&CPU::transform("24 10"), 100);
 
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1428,7 +1438,7 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b00000010;
         cpu.mem_write(0x10, 0b10111101);
-        cpu.interpret(&CPU::transform("24 10"));
+        cpu.interpret(&CPU::transform("24 10"), 100);
 
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));

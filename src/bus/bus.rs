@@ -1,7 +1,6 @@
 use crate::cpu::cpu::Mem;
 use crate::nes::ines::Rom;
 
-
 // # Memory Map http://nesdev.com/NESDoc.pdf
 //
 //  _______________ $10000  _______________
@@ -35,7 +34,7 @@ use crate::nes::ines::Rom;
 
 pub struct Bus {
     pub ram: [u8; 0x800],
-    pub rom: Rom
+    pub rom: Rom,
 }
 
 #[allow(dead_code)]
