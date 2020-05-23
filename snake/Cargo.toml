@@ -1,0 +1,18 @@
+[package]
+name = "snake"
+version = "0.1.0"
+authors = ["bugzmanov <bugzmanov@gmail.com>"]
+# path="src/main.rs"
+edition = "2018"
+
+# [[bin]]
+# name = "snake"
+# path = "src/main.rs"
+
+
+[dependencies]
+crossterm = "=0.17.4"
+rand = "=0.7.3"
+rustness = { path = ".." } 
+
+
