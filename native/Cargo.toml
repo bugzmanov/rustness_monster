@@ -10,3 +10,4 @@ default-run="nativenes"
 [dependencies]
 sdl2 = "0.34.0"
 rustness = { path = ".." } 
+rand = "=0.7.3"
