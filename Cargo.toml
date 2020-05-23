@@ -34,4 +34,7 @@ nom = "=5.1.1"
 [workspace]
 members = [
     "snake",
+    "native",
 ]
+
+default-members = [".", "native"]

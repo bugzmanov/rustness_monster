@@ -1,5 +1,5 @@
 use crate::cpu::cpu::Mem;
-use crate::nes::ines::Rom;
+use crate::rom::ines::Rom;
 
 // # Memory Map http://nesdev.com/NESDoc.pdf
 //
@@ -113,7 +113,7 @@ impl Mem for Bus {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::nes::ines::test_ines_rom;
+    use crate::rom::ines::test_ines_rom;
 
     fn test_bus() -> Bus {
         Bus {

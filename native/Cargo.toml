@@ -1,0 +1,12 @@
+[package]
+name = "nativenes"
+version = "0.1.0"
+authors = ["bugzmanov <bugzmanov@gmail.com>"]
+# path="src/main.rs"
+edition = "2018"
+default-run="nativenes"
+
+
+[dependencies]
+sdl2 = "0.34.0"
+rustness = { path = ".." } 

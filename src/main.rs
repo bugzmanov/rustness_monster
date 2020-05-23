@@ -1,5 +1,5 @@
 use rustness::cpu::cpu::CPU;
-use rustness::nes::ines::Rom;
+use rustness::rom::ines::Rom;
 use rustness::cpu::cpu::Memory;
 
 use std::fs::File;
