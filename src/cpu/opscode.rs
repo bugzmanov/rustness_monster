@@ -166,6 +166,8 @@ lazy_static! {
         OpsCode::new(0xeb, "SBC", 2,2, AddressingMode::Immediate),
 
         OpsCode::new(0x0b, "ANC", 2,2, AddressingMode::Immediate),
+
+        OpsCode::new(0x4b, "ALR", 2,2, AddressingMode::Immediate),
         // OpsCode::new(0xCB, "IGN", 3,4 /* or 5*/, AddressingMode::Absolute_X),
 
         OpsCode::new(0x04, "IGN", 2,3, AddressingMode::ZeroPage),
@@ -361,15 +363,7 @@ lazy_static! {
        for cpuop in &*CPU_OPS_CODES {
            map.insert(cpuop.code, cpuop);
        }
-       // map.insert(0xa9, &CPU_OPS_CODES[0]);
-       // map.insert(0xa5, &CPU_OPS_CODES[1]);
-       // map.insert(0xb5, &CPU_OPS_CODES[2]);
-       // map.insert(0xad, &CPU_OPS_CODES[3]);
-       // map.insert(0xbd, &CPU_OPS_CODES[4]);
-       // map.insert(0xb9, &CPU_OPS_CODES[4]);
        map
-
-
    };
 
 }

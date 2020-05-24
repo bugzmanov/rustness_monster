@@ -393,6 +393,19 @@ impl<'a> CPU<'a> {
         data
     }
 
+    fn lsr(&mut self, mode: &AddressingMode) -> u8 {
+        let mut data = mode.read_u8(self);
+        if data & 1 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.clear_carry_flag();
+        }
+        data = data >> 1;
+        mode.write_u8(self, data);
+        self._udpate_cpu_flags(data);
+        data
+    }
+
     pub fn interpret(&mut self, program: &[u8], mem_start: u16) {
         self.test_interpret_fn(program, mem_start, |_| {});
     }
@@ -519,15 +532,7 @@ impl<'a> CPU<'a> {
 
                 /* LSR */
                 0x4a | 0x46 | 0x56 | 0x4e | 0x5e => {
-                    let mut data = ops.mode.read_u8(self);
-                    if data & 1 == 1 {
-                        self.set_carry_flag();
-                    } else {
-                        self.clear_carry_flag();
-                    }
-                    data = data >> 1;
-                    ops.mode.write_u8(self, data);
-                    self._udpate_cpu_flags(data)
+                    self.lsr(&ops.mode);
                 }
 
                 /* ASL */
@@ -805,6 +810,12 @@ impl<'a> CPU<'a> {
                     let data = self.asl(&ops.mode);
                     self.or_with_register_a(data);
                 }
+
+                /* SRE */ //todo tests
+                0x47 | 0x57 | 0x4F | 0x5f | 0x5b | 0x43 | 0x53  => {
+                    let data = self.lsr(&ops.mode);
+                    self.xor_with_register_a(data);
+                }  
 
                 _ => panic!("Unknown ops code"),
             }
