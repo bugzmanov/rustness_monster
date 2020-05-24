@@ -768,6 +768,23 @@ impl<'a> CPU<'a> {
                     self._udpate_cpu_flags(self.register_a);
                 }
 
+
+                /* unofficial */
+
+                /* DCP */
+                0xc7 | 0xd7 | 0xCF | 0xdF | 0xdb | 0xd3 | 0xc3 => {
+                    let mut data = ops.mode.read_u8(self);
+                    data = data.wrapping_sub(1);
+                    ops.mode.write_u8(self, data);
+                    // self._udpate_cpu_flags(data);
+                    if data <= self.register_a {
+                        self.flags.insert(CpuFlags::CARRY);
+                    }
+            
+                    self._udpate_cpu_flags(self.register_a.wrapping_sub(data));
+            
+                },
+
                 _ => panic!("Unknown ops code"),
             }
 
@@ -1430,6 +1447,22 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
+    }
+
+    #[test]
+    fn test_unofficial_0xc7_dcp() {
+        let mut mem = Memory::new();
+        let mut cpu = CPU::new(&mut mem);
+        cpu.register_a = 2;
+        cpu.mem_write(0x10, 3);
+
+        cpu.interpret(&CPU::transform("c7 10"), 100);
+        
+        assert_eq!(cpu.mem_read(0x10), 2);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::ZERO));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+
     }
 
     #[test]
