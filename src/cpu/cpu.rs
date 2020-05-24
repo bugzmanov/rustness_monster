@@ -423,6 +423,25 @@ impl<'a> CPU<'a> {
         data
     }
 
+    fn inc(&mut self, mode: &AddressingMode) -> u8 {
+        let mut data = mode.read_u8(self);
+        data = data.wrapping_add(1);
+        mode.write_u8(self, data);
+        self._udpate_cpu_flags(data);
+        data
+    }
+    
+    fn lda(&mut self, mode: &AddressingMode) -> u8 {
+        let data = mode.read_u8(self);
+        self.set_register_a(data);
+        data
+    }
+
+    fn tax(&mut self) {
+        self.register_x = self.register_a;
+        self._udpate_cpu_flags(self.register_x);
+    }
+
     pub fn interpret(&mut self, program: &[u8], mem_start: u16) {
         self.test_interpret_fn(program, mem_start, |_| {});
     }
@@ -583,10 +602,7 @@ impl<'a> CPU<'a> {
 
                 /* INC */
                 0xe6 | 0xf6 | 0xee | 0xfe => {
-                    let mut data = ops.mode.read_u8(self);
-                    data = data.wrapping_add(1);
-                    ops.mode.write_u8(self, data);
-                    self._udpate_cpu_flags(data);
+                    self.inc(&ops.mode);
                 }
                 /* INX */
                 0xe8 => {
@@ -744,9 +760,7 @@ impl<'a> CPU<'a> {
 
                 /* LDA */
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
-                    //todo: tests
-                    let data = ops.mode.read_u8(self);
-                    self.set_register_a(data);
+                    self.lda(&ops.mode);
                 }
 
                 /* LDX */
@@ -768,8 +782,7 @@ impl<'a> CPU<'a> {
 
                 /* TAX */
                 0xaa => {
-                    self.register_x = self.register_a;
-                    self._udpate_cpu_flags(self.register_x);
+                    self.tax();
                 }
 
                 /* TAY */
@@ -903,7 +916,118 @@ impl<'a> CPU<'a> {
                     self.and_with_register_a(data);
                     self.lsr(&AddressingMode::Accumulator);
                 }
+
+                //todo: test for everything bellow
                 
+                /* NOP read */
+                0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xd4 | 0xf4 | 0x0c | 0x1c | 0x3c | 0x5c | 0x7c | 0xdc | 0xfc => {
+                    let data = ops.mode.read_u8(self);
+                    /* do nothing */
+                }
+
+                /* RRA */
+                0x67 | 0x77 | 0x6f | 0x7f | 0x7b | 0x63 | 0x73 => {
+                    let data = self.ror(&ops.mode);
+                    self.add_to_register_a(data);
+                }
+
+                /* ISC */
+                0xe7 | 0xf7 | 0xef | 0xff | 0xfb | 0xe3 | 0xf3 => {
+                    let data = self.inc(&ops.mode);
+                    self.sub_from_register_a(data);
+                }
+
+                /* NOPs */
+                0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xb2 | 0xd2 | 0xf2 => {
+                    /* do nothing */
+                }
+
+                0x1a | 0x3a | 0x5a | 0x7a | 0xda | 0xea | 0xfa => {
+                    /* do nothing */
+                }
+
+                /* LAX */ 
+                0xa7 | 0xb7 | 0xaf | 0xbf | 0xa3 | 0xb3  => {
+                    let data = ops.mode.read_u8(self);
+                    self.set_register_a(data);
+                    self.register_x = self.register_a;
+                }
+
+                /* SAX */
+                0x87 | 0x97 | 0x8f | 0x83 => {
+                    let data = self.register_a & self.register_x;
+                    ops.mode.write_u8(self, data);
+                }
+
+                /* LXA */
+                0xab => {
+                    self.lda(&ops.mode);
+                    self.tax();
+                }
+
+                /* XAA */
+                0x8b => {
+                    self.register_a = self.register_x;
+                    self._udpate_cpu_flags(self.register_a);
+                    let data = ops.mode.read_u8(&self);
+                    self.and_with_register_a(data);
+                }
+                
+                /* LAS */
+                0xbb => { 
+                    let data = ops.mode.read_u8(&self) & self.stack_pointer;
+                    self.register_a = data;
+                    self.register_x = data;
+                    self.stack_pointer = data;
+                    self._udpate_cpu_flags(data);
+                }
+
+                /* TAS */  //todo this and below really needs testing!!!
+                0x9b => {
+                    let data = self.register_a & self.register_x;
+                    self.stack_pointer = data;
+                    let mem_address = self.mem_read_u16(self.program_counter) + self.register_y as u16;
+                    let data = ((mem_address >> 8) as u8 + 1) & self.stack_pointer;
+                    ops.mode.write_u8(self, data)
+                }
+
+                /* AHX  Indirect Y */
+                0x93 => {
+                    let pos: u8 = self.mem_read(self.program_counter);
+                    let mem_address = self.mem_read_u16(pos as u16) + self.register_y as u16;
+                    let data = self.register_a & self.register_x & (mem_address >> 8) as u8;
+                    ops.mode.write_u8(self, data);
+                }
+
+                /* AHX Absolute Y*/
+                0x9f => {
+                    let mem_address = self.mem_read_u16(self.program_counter) + self.register_y as u16;
+
+                    let data = self.register_a & self.register_x & (mem_address >> 8) as u8;
+                    ops.mode.write_u8(self, data);
+                }
+
+                /* SHX */
+                0x9e => {
+                    let mem_address = self.mem_read_u16(self.program_counter) + self.register_y as u16;
+
+                    // todo if cross page boundry {
+                    //     mem_address &= (self.x as u16) << 8;
+                    // }
+                    let data = self.register_x & ((mem_address >> 8) as u8 + 1);
+                    ops.mode.write_u8(self, data);
+                } 
+
+                /* SHY */
+                0x9c => {
+                    let mem_address = self.mem_read_u16(self.program_counter) + self.register_x as u16;
+                    // todo if cross oage boundry {
+                    //     mem_address &= (self.y as u16) << 8;
+                    // }
+                    let data = self.register_y & ((mem_address >> 8) as u8 + 1);
+                    ops.mode.write_u8(self, data);
+
+                } 
                 _ => panic!("Unknown ops code"),
             }
 
