@@ -21,6 +21,10 @@ impl Disasm {
         while begin < program.len() {
             //todo: should be another condition as well
             let code = &program[begin];
+            if !opscodes.contains_key(code) {
+                panic!("unknown ops code {:02x}", code);
+            }
+
             let ops = opscodes.get(code).unwrap();
 
             let tmp = match ops.len {
@@ -44,10 +48,16 @@ impl Disasm {
                             format!("${:04x}", address)
                         }
 
-                        _ => panic!("unexpected addressing mode {:?} has ops-len 2", ops.mode),
+                        _ => panic!(
+                            "unexpected addressing mode {:?} has ops-len 2. code {:02x}",
+                            ops.mode, ops.code
+                        ),
                     }
                 }
                 3 => {
+                    if (begin + 1 >= program.len() || begin + 2 >= program.len()) {
+                        panic!("unexpected end of program. code {:02x} requires 2 parameters, but only {} left ", ops.code, program.len() - begin);
+                    }
                     hex_dump.push(vec![*code, program[begin + 1], program[begin + 2]]);
                     format!(
                         "${:04x}",
@@ -57,11 +67,12 @@ impl Disasm {
                 _ => String::from(""),
             };
 
-            asm.push(
-                format!("{:04x}: {} {}", begin, ops.mnemonic, tmp)
-                    .trim()
-                    .to_string(),
-            );
+            let asm_str = format!("{:04x}: {} {}", begin, ops.mnemonic, tmp)
+                .trim()
+                .to_string();
+            println!("{}", asm_str);
+
+            asm.push(asm_str);
             mapping.insert(begin as u16, asm.len() - 1);
             begin += ops.len as usize;
         }

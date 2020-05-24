@@ -81,8 +81,13 @@ impl Bus {
         }
     }
 
-    fn read_prg_rom(&self, pos: u16) -> u8 {
+    fn read_prg_rom(&self, mut pos: u16) -> u8 {
         //todo: mapper
+        pos -= 0x8000;
+        if self.rom.prg_rom.len() == 0x4000 && pos > 0x4000 {
+            //mirror if needed
+            pos -= 0x4000;
+        }
         self.rom.prg_rom[pos as usize]
     }
 }
