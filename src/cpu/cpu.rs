@@ -380,6 +380,23 @@ impl<'a> CPU<'a> {
         data
     }
 
+    fn ror(&mut self, mode: &AddressingMode) -> u8 {
+        let mut data = mode.read_u8(self);
+        let old_carry = self.flags.contains(CpuFlags::CARRY);
+
+        if data & 1 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.clear_carry_flag();
+        }
+        data = data >> 1;
+        if old_carry {
+            data = data | 0b10000000;
+        }
+        mode.write_u8(self, data);
+        data
+    }
+
     fn asl(&mut self, mode: &AddressingMode) -> u8  {
         let mut data = mode.read_u8(self);
         if data >> 7 == 1 {
@@ -547,19 +564,20 @@ impl<'a> CPU<'a> {
 
                 /* ROR */
                 0x6a | 0x66 | 0x76 | 0x6e | 0x7e => {
-                    let mut data = ops.mode.read_u8(self);
-                    let old_carry = self.flags.contains(CpuFlags::CARRY);
+                    let data = self.ror(&ops.mode);
+                    // let mut data = ops.mode.read_u8(self);
+                    // let old_carry = self.flags.contains(CpuFlags::CARRY);
 
-                    if data & 1 == 1 {
-                        self.set_carry_flag();
-                    } else {
-                        self.clear_carry_flag();
-                    }
-                    data = data >> 1;
-                    if old_carry {
-                        data = data | 0b10000000;
-                    }
-                    ops.mode.write_u8(self, data);
+                    // if data & 1 == 1 {
+                    //     self.set_carry_flag();
+                    // } else {
+                    //     self.clear_carry_flag();
+                    // }
+                    // data = data >> 1;
+                    // if old_carry {
+                    //     data = data | 0b10000000;
+                    // }
+                    // ops.mode.write_u8(self, data);
                     self._update_negative_flag(data)
                 }
 
@@ -837,6 +855,30 @@ impl<'a> CPU<'a> {
                     self.register_x = result;
                 }
 
+                /* ARR */ 
+                0x6B => {
+                    let data = ops.mode.read_u8(self);
+                    self.and_with_register_a(data);
+                    self.ror(&AddressingMode::Accumulator);
+                    //todo: registers
+                    let result = self.register_a;
+                    let bit_5 = (result >> 5) & 1;
+                    let bit_6 = (result >> 6) & 1;
+                   
+                    if bit_6 == 1 {
+                        self.flags.insert(CpuFlags::CARRY)
+                    } else {                       
+                         self.flags.remove(CpuFlags::CARRY)
+                    }
+
+                    if bit_5 ^ bit_6 == 1 {
+                        self.flags.insert(CpuFlags::OVERFLOW);
+                    } else {
+                        self.flags.remove(CpuFlags::OVERFLOW);
+                    }
+
+                    self._udpate_cpu_flags(result);
+                }
                 _ => panic!("Unknown ops code"),
             }
 
@@ -1542,6 +1584,23 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_unofficial_0x6B_arr() {
+        let mut mem = Memory::new();
+        let mut cpu = CPU::new(&mut mem);
+        cpu.register_a = 0b11010000;
+
+        cpu.interpret(&CPU::transform("6b 90"), 100); //0b10010000
+
+        assert_eq!(cpu.register_a, 0b01001000);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+
+
     }
 
     #[test]
