@@ -879,6 +879,31 @@ impl<'a> CPU<'a> {
 
                     self._udpate_cpu_flags(result);
                 }
+
+                /* unofficial SBC */
+                0xeb => {
+                    let data = ops.mode.read_u8(self);
+                    self.sub_from_register_a(data);
+                }
+
+                /* ANC */
+                0x0b | 0x2b => {
+                    let data = ops.mode.read_u8(self);
+                    self.and_with_register_a(data);
+                    if self.flags.contains(CpuFlags::NEGATIV) {
+                        self.flags.insert(CpuFlags::CARRY);
+                    } else {
+                        self.flags.remove(CpuFlags::CARRY);
+                    }
+                }
+                
+                /* ALR */
+                0x4b => {
+                    let data = ops.mode.read_u8(self);
+                    self.and_with_register_a(data);
+                    self.lsr(&AddressingMode::Accumulator);
+                }
+                
                 _ => panic!("Unknown ops code"),
             }
 
@@ -1599,8 +1624,18 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::OVERFLOW));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::ZERO));
+    }
 
-
+    #[test]
+    fn test_unoffical_0x0b_anc() {
+        let mut mem = Memory::new();
+        let mut cpu = CPU::new(&mut mem);
+        cpu.register_a = 0b11010010;
+        cpu.interpret(&CPU::transform("0b 90"), 100); //0b10010000
+        assert_eq!(cpu.register_a, 0b10010000);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
     }
 
     #[test]
