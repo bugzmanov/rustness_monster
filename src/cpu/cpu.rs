@@ -362,6 +362,24 @@ impl<'a> CPU<'a> {
         }
     }
 
+    fn rol(&mut self, mode: &AddressingMode) -> u8 {
+        let mut data = mode.read_u8(self);
+        let old_carry = self.flags.contains(CpuFlags::CARRY);
+
+        if data >> 7 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.clear_carry_flag();
+        }
+        data = data << 1;
+        if old_carry {
+            data = data | 1;
+        }
+        mode.write_u8(self, data);
+        self._update_negative_flag(data);
+        data
+    }
+
     pub fn interpret(&mut self, program: &[u8], mem_start: u16) {
         self.test_interpret_fn(program, mem_start, |_| {});
     }
@@ -514,20 +532,21 @@ impl<'a> CPU<'a> {
 
                 /* ROL */
                 0x2a | 0x26 | 0x36 | 0x2e | 0x3e => {
-                    let mut data = ops.mode.read_u8(self);
-                    let old_carry = self.flags.contains(CpuFlags::CARRY);
+                    self.rol(&ops.mode);
+                    // let mut data = ops.mode.read_u8(self);
+                    // let old_carry = self.flags.contains(CpuFlags::CARRY);
 
-                    if data >> 7 == 1 {
-                        self.set_carry_flag();
-                    } else {
-                        self.clear_carry_flag();
-                    }
-                    data = data << 1;
-                    if old_carry {
-                        data = data | 1;
-                    }
-                    ops.mode.write_u8(self, data);
-                    self._update_negative_flag(data)
+                    // if data >> 7 == 1 {
+                    //     self.set_carry_flag();
+                    // } else {
+                    //     self.clear_carry_flag();
+                    // }
+                    // data = data << 1;
+                    // if old_carry {
+                    //     data = data | 1;
+                    // }
+                    // ops.mode.write_u8(self, data);
+                    // self._update_negative_flag(data)
                 }
 
                 /* ROR */
@@ -782,8 +801,13 @@ impl<'a> CPU<'a> {
                     }
             
                     self._udpate_cpu_flags(self.register_a.wrapping_sub(data));
-            
                 },
+
+                /* RLA */
+                0x27 | 0x37 | 0x2F | 0x3F | 0x3b | 0x33 | 0x23 => {
+                   let data = self.rol(&ops.mode);
+                    self.and_with_register_a(data);
+                }
 
                 _ => panic!("Unknown ops code"),
             }
@@ -1463,6 +1487,18 @@ mod test {
         assert!(cpu.flags.contains(CpuFlags::ZERO));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
 
+    }
+
+    #[test]
+    fn test_unofficial_0x2F_rla() {
+        let mut mem = Memory::new();
+        let mut cpu = CPU::new(&mut mem);
+        cpu.register_a = 0b10000011;
+        cpu.mem_write(0x1510, 0b10000001);
+        cpu.interpret(&CPU::transform("2f 10 15"), 100);
+        assert_eq!(cpu.mem_read(0x1510), 0b00000010);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert_eq!(cpu.register_a, 0b00000010);
     }
 
     #[test]
