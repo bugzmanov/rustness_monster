@@ -823,6 +823,20 @@ impl<'a> CPU<'a> {
                     // todo: might be worth doing the read
                 }
                 
+                /* AXS */
+                0xCB => {
+                    let data = ops.mode.read_u8(self);
+                    let x_and_a = self.register_x & self.register_a;
+                    let result = x_and_a.wrapping_sub(data);
+
+                    if data <= x_and_a {
+                        self.flags.insert(CpuFlags::CARRY);
+                    }
+                    self._udpate_cpu_flags(result);
+
+                    self.register_x = result;
+                }
+
                 _ => panic!("Unknown ops code"),
             }
 
@@ -1513,6 +1527,21 @@ mod test {
         assert_eq!(cpu.mem_read(0x1510), 0b00000010);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert_eq!(cpu.register_a, 0b00000010);
+    }
+
+    #[test]
+    fn test_unofficial_0xCB_axs() {
+        let mut mem = Memory::new();
+        let mut cpu = CPU::new(&mut mem);
+        cpu.register_a = 0b10000011;
+        cpu.register_x = 0b10000001;
+
+        cpu.interpret(&CPU::transform("cb 10"), 100); //0b0010000
+
+        assert_eq!(cpu.register_x, 0b1110001);
+        assert!(cpu.flags.contains(CpuFlags::CARRY));
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
+        assert!(!cpu.flags.contains(CpuFlags::ZERO));
     }
 
     #[test]
