@@ -817,6 +817,12 @@ impl<'a> CPU<'a> {
                     self.xor_with_register_a(data);
                 }  
 
+                /* SKB */ 
+                0x80 | 0x82 | 0x89 | 0xc2 | 0xe2 => {
+                    /* 2 byte NOP read (immidiate ) */
+                    // todo: might be worth doing the read
+                }
+                
                 _ => panic!("Unknown ops code"),
             }
 
