@@ -117,7 +117,12 @@ lazy_static! {
        OpsCode::new(0x88, "DEY", 1, 2, AddressingMode::NoneAddressing),
 
 
-       /* unofficial */
+       /* unofficial: 
+       http://nesdev.com/undocumented_opcodes.txt, 
+       https://wiki.nesdev.com/w/index.php/Programming_with_unofficial_opcodes,
+       https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes,
+       http://www.oxyron.de/html/opcodes02.html */
+       
         OpsCode::new(0xc7, "DCP", 2, 5, AddressingMode::ZeroPage),
         OpsCode::new(0xd7, "DCP", 2, 6, AddressingMode::ZeroPage_X),
         OpsCode::new(0xCF, "DCP", 3, 6, AddressingMode::Absolute),
