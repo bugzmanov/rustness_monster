@@ -55,8 +55,8 @@ impl Disasm {
                     }
                 }
                 3 => {
-                    if (begin + 1 >= program.len() || begin + 2 >= program.len()) {
-                        panic!("unexpected end of program. code {:02x} requires 2 parameters, but only {} left ", ops.code, program.len() - begin);
+                    if begin + 1 >= program.len() || begin + 2 >= program.len() {
+                        panic!("unexpected end of program. code {:02x} requires 2 parameters, but only {} byte(s) left ", ops.code, program.len() - begin);
                     }
                     hex_dump.push(vec![*code, program[begin + 1], program[begin + 2]]);
                     format!(
@@ -70,7 +70,6 @@ impl Disasm {
             let asm_str = format!("{:04x}: {} {}", begin, ops.mnemonic, tmp)
                 .trim()
                 .to_string();
-            println!("{}", asm_str);
 
             asm.push(asm_str);
             mapping.insert(begin as u16, asm.len() - 1);

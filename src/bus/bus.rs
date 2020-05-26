@@ -74,6 +74,8 @@ impl Bus {
 
         if pos < Bus::RAM_MIRRORS {
             self.ram[pos as usize]
+        } else if pos == 0x2002 {
+            0b10000000
         } else if pos >= Bus::PRG_ROM {
             self.read_prg_rom(pos)
         } else {
@@ -94,7 +96,7 @@ impl Bus {
 
 impl Mem for Bus {
     fn write(&mut self, pos: u16, data: u8) {
-        self.write(pos, data);
+        Bus::write(self, pos, data);
     }
 
     fn write_u16(&mut self, pos: u16, data: u16) {
@@ -105,13 +107,13 @@ impl Mem for Bus {
     }
 
     fn read(&self, pos: u16) -> u8 {
-        self.read(pos)
+        Bus::read(self, pos)
     }
 
     fn read_u16(&self, pos: u16) -> u16 {
-        let lo = self.read(pos);
-        let hi = self.read(pos + 1);
-        ((hi << 8) as u16) | (lo as u16)
+        let lo = self.read(pos) as u16;
+        let hi = self.read(pos + 1) as u16;
+        (hi  << 8) | (lo as u16)
     }
 }
 

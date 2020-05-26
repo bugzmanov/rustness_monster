@@ -166,6 +166,7 @@ lazy_static! {
         OpsCode::new(0xeb, "SBC", 2,2, AddressingMode::Immediate),
 
         OpsCode::new(0x0b, "ANC", 2,2, AddressingMode::Immediate),
+        OpsCode::new(0x2b, "ANC", 2,2, AddressingMode::Immediate),
 
         OpsCode::new(0x4b, "ALR", 2,2, AddressingMode::Immediate),
         // OpsCode::new(0xCB, "IGN", 3,4 /* or 5*/, AddressingMode::Absolute_X),
@@ -225,18 +226,15 @@ lazy_static! {
         OpsCode::new(0xea, "NOP", 1,2, AddressingMode::NoneAddressing),
         OpsCode::new(0xfa, "NOP", 1,2, AddressingMode::NoneAddressing),
 
-        OpsCode::new(0x0b, "ANC", 2,2, AddressingMode::Immediate),
-        OpsCode::new(0x2b, "ANC", 2,2, AddressingMode::Immediate),
-
-        OpsCode::new(0xab, "LAX", 2, 3, AddressingMode::Immediate), //todo: highly unstable and not used
+        OpsCode::new(0xab, "LXA", 2, 3, AddressingMode::Immediate), //todo: highly unstable and not used
         //http://visual6502.org/wiki/index.php?title=6502_Opcode_8B_%28XAA,_ANE%29
         OpsCode::new(0x8b, "XAA", 2, 3, AddressingMode::Immediate), //todo: highly unstable and not used
         OpsCode::new(0xbb, "LAS", 3, 2, AddressingMode::Absolute_Y), //todo: highly unstable and not used
         OpsCode::new(0x9b, "TAS", 3, 2, AddressingMode::Absolute_Y), //todo: highly unstable and not used
         OpsCode::new(0x93, "AHX", 2, /* guess */ 8, AddressingMode::Indirect_Y), //todo: highly unstable and not used
+        OpsCode::new(0x9f, "AHX", 3, /* guess */ 4/* or 5*/, AddressingMode::Absolute_Y), //todo: highly unstable and not used
         OpsCode::new(0x9e, "SHX", 3, /* guess */ 4/* or 5*/, AddressingMode::Absolute_Y), //todo: highly unstable and not used
         OpsCode::new(0x9c, "SHY", 3, /* guess */ 4/* or 5*/, AddressingMode::Absolute_X), //todo: highly unstable and not used
-        OpsCode::new(0x9f, "AHX", 3, /* guess */ 4/* or 5*/, AddressingMode::Absolute_Y), //todo: highly unstable and not used
 
         OpsCode::new(0xa7, "LAX", 2, 3, AddressingMode::ZeroPage),
         OpsCode::new(0xb7, "LAX", 2, 4, AddressingMode::ZeroPage_Y),

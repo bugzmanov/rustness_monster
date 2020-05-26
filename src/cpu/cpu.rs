@@ -203,12 +203,12 @@ impl AddressingMode {
 }
 
 pub struct CPU<'a> {
-    register_a: u8,
-    register_x: u8,
-    register_y: u8,
-    stack_pointer: u8,
+    pub(super) register_a: u8,
+    pub(super) register_x: u8,
+    pub(super) register_y: u8,
+    pub(super) stack_pointer: u8,
     pub program_counter: u16,
-    flags: CpuFlags,
+    pub(super) flags: CpuFlags,
     pub memory: &'a mut dyn Mem,
 }
 
@@ -327,11 +327,11 @@ impl<'a> CPU<'a> {
         self.mem_read_u16((STACK as u16) + self.stack_pointer as u16)
     }
 
-    fn mem_read(&self, pos: u16) -> u8 {
+    pub(super) fn mem_read(&self, pos: u16) -> u8 {
         self.memory.read(pos)
     }
 
-    fn mem_read_u16(&self, pos: u16) -> u16 {
+    pub(super) fn mem_read_u16(&self, pos: u16) -> u16 {
         self.memory.read_u16(pos)
     }
 
@@ -466,22 +466,13 @@ impl<'a> CPU<'a> {
     {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
         while (self.program_counter as usize) < program_end {
+            callback_opt(self);
+
             let code = self.mem_read(self.program_counter);
             let ops = opscodes.get(&code).unwrap();
 
             self.program_counter += 1;
             let program_counter_state = self.program_counter;
-
-            // debug
-            // let tmp = match ops.len {
-            //     2 => format!("{:x}", program[begin + 1]),
-            //     3 => format!(
-            //         "{:x}",
-            //         LittleEndian::read_u16(&program[begin + 1 as usize..])
-            //     ),
-            //     _ => format!(""),
-            // };
-            // println!("{:x}: {} {}", self.program_counter, ops.mnemonic, tmp);
 
             match code {
                 /* BRK */
@@ -921,7 +912,7 @@ impl<'a> CPU<'a> {
                 
                 /* NOP read */
                 0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xd4 | 0xf4 | 0x0c | 0x1c | 0x3c | 0x5c | 0x7c | 0xdc | 0xfc => {
-                    let data = ops.mode.read_u8(self);
+                    ops.mode.read_u8(self);
                     /* do nothing */
                 }
 
@@ -942,7 +933,7 @@ impl<'a> CPU<'a> {
                     /* do nothing */
                 }
 
-                0x1a | 0x3a | 0x5a | 0x7a | 0xda | 0xea | 0xfa => {
+                0x1a | 0x3a | 0x5a | 0x7a | 0xda |  0xfa => {
                     /* do nothing */
                 }
 
@@ -1038,7 +1029,6 @@ impl<'a> CPU<'a> {
             }
             //todo: cycles
 
-            callback_opt(self);
         }
     }
 
@@ -1709,7 +1699,7 @@ mod test {
     }
 
     #[test]
-    fn test_unofficial_0x2F_rla() {
+    fn test_unofficial_0x2f_rla() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b10000011;
@@ -1721,7 +1711,7 @@ mod test {
     }
 
     #[test]
-    fn test_unofficial_0xCB_axs() {
+    fn test_unofficial_0xcb_axs() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b10000011;
@@ -1736,7 +1726,7 @@ mod test {
     }
 
     #[test]
-    fn test_unofficial_0x6B_arr() {
+    fn test_unofficial_0x6b_arr() {
         let mut mem = Memory::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010000;
