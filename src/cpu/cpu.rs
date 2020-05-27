@@ -351,12 +351,11 @@ impl<'a> CPU<'a> {
         let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
         while (self.program_counter as usize) < program_end {
             callback_opt(self);
-            self.do_execute_ops(program_end, &opscodes);
-            //todo: cycles
+            self.execute_next_op(program_end, &opscodes);
         }
     }
 
-    fn do_execute_ops(
+    fn execute_next_op(
         &mut self,
         program_end: usize,
         opscodes: &HashMap<u8, &'static opscode::OpsCode>,
@@ -386,8 +385,6 @@ impl<'a> CPU<'a> {
                 if !self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                     self.interrupt(interrupt::BRK);
                 }
-                // self.flags.insert(CpuFlags::BREAK);
-                // return;
             }
 
             /* CLD */ 0xd8 => self.flags.remove(CpuFlags::DECIMAL_MODE),

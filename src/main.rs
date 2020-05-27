@@ -1,5 +1,6 @@
 use rustness::bus::bus::Bus;
 use rustness::cpu::cpu::CPU;
+use rustness::ppu::ppu::PPU;
 use rustness::rom::ines::Rom;
 
 use std::fs::File;
@@ -17,7 +18,7 @@ fn main() {
 
     let rom = Rom::load(&data).unwrap();
 
-    let bus = Bus::new(rom);
+    let bus = Bus::<PPU>::new(rom);
 
     let pc = bus.read(0xfffc);
     let ffd = bus.read(0xfffd);

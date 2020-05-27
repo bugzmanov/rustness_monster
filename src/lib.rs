@@ -1,6 +1,7 @@
 pub mod bus;
 pub mod cpu;
 pub mod disasm;
+pub mod ppu;
 pub mod rom;
 pub mod screen;
 

@@ -1,4 +1,6 @@
 use crate::cpu::mem::Mem;
+use NesPPU::ppu::ppu::NesPPU;
+use PPU::ppu::ppu::PPU;
 use crate::rom::ines::Rom;
 use byteorder::{ByteOrder, LittleEndian};
 use std::cell::RefCell;
@@ -35,65 +37,131 @@ use std::rc::Rc;
 // |_______________| $0000 |_______________|
 //
 
-pub struct Bus {
+pub struct Bus<T: PPU> {
     pub ram: [u8; 0x800],
     pub rom: Rom,
     pub nmi_interrupt: Option<u8>,
     pub cycles: usize,
+    ppu: T,
 }
 
-#[allow(dead_code)]
-impl Bus {
-    const ZERO_PAGE: u16 = 0x0;
-    const STACK: u16 = 0x0100;
-    const RAM: u16 = 0x0200;
-    const RAM_MIRRORS: u16 = 0x0800;
-    const RAM_MIRRORS_END: u16 = 0x1FFF;
-    const IO_REGISTERS: u16 = 0x2000;
-    const IO_MIRRORS: u16 = 0x2008;
-    const IO_MIRRORS_END: u16 = 0x3FFF;
-    const PRG_ROM: u16 = 0x8000;
+const ZERO_PAGE: u16 = 0x0;
+const STACK: u16 = 0x0100;
+const RAM: u16 = 0x0200;
+const RAM_MIRRORS: u16 = 0x0800;
+const RAM_MIRRORS_END: u16 = 0x1FFF;
+const IO_REGISTERS: u16 = 0x2000;
+const IO_MIRRORS: u16 = 0x2008;
+const IO_MIRRORS_END: u16 = 0x3FFF;
+const PRG_ROM: u16 = 0x8000;
+const PRG_ROM_END: u16 = 0xFFFF;
 
-    pub fn new(rom: Rom) -> Self {
+fn map_mirrors(pos: u16) -> u16 {
+    match pos {
+        RAM_MIRRORS..=RAM_MIRRORS_END => pos & 0b11111111111,
+        IO_MIRRORS..=IO_MIRRORS_END => pos & 0b10000000000111,
+        _ => pos,
+    }
+}
+
+
+#[allow(dead_code)]
+impl<T: PPU> Bus<T> {
+
+    pub fn new(rom: Rom) -> Bus<NesPPU> {
         Bus {
             ram: [0; 2048],
             rom: rom,
             nmi_interrupt: None,
             cycles: 0,
+            ppu: NesPPU::new(),
         }
     }
 
-    fn map_mirrors(pos: u16) -> u16 {
-        match pos {
-            Bus::RAM_MIRRORS..=Bus::RAM_MIRRORS_END => pos & 0b11111111111,
-            Bus::IO_MIRRORS..=Bus::IO_MIRRORS_END => pos & 0b10000000000111,
-            _ => pos,
-        }
-    }
 
     pub fn write(&mut self, pos: u16, data: u8) {
-        let pos = Bus::map_mirrors(pos);
+        match pos {
+            0x00 ..=RAM_MIRRORS_END => {
+                let pos = map_mirrors(pos);
+                self.ram[pos as usize] = data;
+            },
+            
+            0x2000 => {
+                self.ppu.write_to_ctrl(data);
+            }
+            0x2001 => {
+                self.ppu.write_to_mask(data);   
+            }
+            0x2002 =>  {
+                panic!("attempt to write to PPU status register")
+            }
+            0x2003 => {
+                self.ppu.write_to_oam_addr(data);
 
-        if pos < Bus::RAM_MIRRORS {
-            self.ram[pos as usize] = data;
-        } else if pos >= Bus::PRG_ROM {
-            panic!("attempt to write to ROM"); //sram?
-        } else {
-            //todo
+            } 
+            0x2004 => {
+                self.ppu.write_to_oam_data(data);
+            } 
+            0x2005 => {
+                self.ppu.write_to_scroll(data);
+            } 
+            
+            0x2006 => {
+                self.ppu.write_to_ppu_addr(data);
+            }
+
+            0x2007 => {
+                self.ppu.write_to_data(data);
+            }
+            0x4014 => {
+                self.ppu.write_to_oam_dma(data);
+            }
+
+            IO_MIRRORS..=IO_MIRRORS_END =>  { //mirror IO registers
+                self.write(pos & 0b10000000000111, data)
+            }
+
+            //todo 0x4000 - 0x8000
+
+            PRG_ROM ..= PRG_ROM_END => {
+                panic!("attempt to write to a ROM section: {:x}", pos); //sram?
+            }
+            _ => {
+                panic!("unimplemented");
+            }
         }
     }
 
     pub fn read(&self, pos: u16) -> u8 {
-        let pos = Bus::map_mirrors(pos);
+        match pos {
+            0x0 ..=RAM_MIRRORS_END => {
+                let pos = map_mirrors(pos);
+                self.ram[pos as usize]
+            }
+            0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => { //todo why 4014??
+                panic!("attempt to read from write-only address {:x}", pos);
+            }
+            0x2002 => {
+                self.ppu.read_status()
+            }
+            0x2004 => {
+                self.ppu.read_oam_data()
+            }
+            0x2007 => {
+                self.ppu.read_data()
+            }
 
-        if pos < Bus::RAM_MIRRORS {
-            self.ram[pos as usize]
-        } else if pos == 0x2002 {
-            0b10000000
-        } else if pos >= Bus::PRG_ROM {
-            self.read_prg_rom(pos)
-        } else {
-            0 //todo
+            IO_MIRRORS..=IO_MIRRORS_END =>  { //mirror IO registers
+                self.read(pos & 0b10000000000111)
+            }
+
+            //todo 0x4000 - 0x8000
+            PRG_ROM..=PRG_ROM_END => {
+                self.read_prg_rom(pos)
+            }
+            _ => {
+                unimplemented!("")
+            }
         }
     }
 
@@ -121,7 +189,7 @@ pub trait CpuBus: Mem {
     fn tick(&mut self, cycles: u8);
 }
 
-impl Mem for Bus {
+impl Mem for Bus<NesPPU> {
     fn write(&mut self, pos: u16, data: u8) {
         Bus::write(self, pos, data);
     }
@@ -144,37 +212,14 @@ impl Mem for Bus {
     }
 }
 
-impl CpuBus for Bus {
+impl CpuBus for Bus<NesPPU> {
     fn poll_nmi_status(&mut self) -> Option<u8> {
         Bus::poll_nmi_status(self)
     }
 
     fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
-    }
-}
-
-pub struct MockBus {
-    pub space: [u8; 0x10000],
-    pub nmi_interrupt: Option<u8>,
-    pub cycles: usize,
-}
-
-impl Mem for MockBus {
-    fn write(&mut self, pos: u16, data: u8) {
-        self.space[pos as usize] = data
-    }
-
-    fn read(&self, pos: u16) -> u8 {
-        self.space[pos as usize]
-    }
-
-    fn read_u16(&self, pos: u16) -> u16 {
-        LittleEndian::read_u16(&self.space[pos as usize..])
-    }
-
-    fn write_u16(&mut self, pos: u16, data: u16) {
-        LittleEndian::write_u16(&mut self.space[pos as usize..], data)
+        self.ppu.tick(cycles); //todo: different rate!
     }
 }
 
@@ -214,6 +259,32 @@ impl CpuBus for DynamicBusWrapper {
     }
 }
 
+
+pub struct MockBus {
+    pub space: [u8; 0x10000],
+    pub nmi_interrupt: Option<u8>,
+    pub cycles: usize,
+}
+
+impl Mem for MockBus {
+    fn write(&mut self, pos: u16, data: u8) {
+        self.space[pos as usize] = data
+    }
+
+    fn read(&self, pos: u16) -> u8 {
+        self.space[pos as usize]
+    }
+
+    fn read_u16(&self, pos: u16) -> u16 {
+        LittleEndian::read_u16(&self.space[pos as usize..])
+    }
+
+    fn write_u16(&mut self, pos: u16, data: u16) {
+        LittleEndian::write_u16(&mut self.space[pos as usize..], data)
+    }
+}
+
+
 impl CpuBus for MockBus {
     fn poll_nmi_status(&mut self) -> Option<u8> {
         self.nmi_interrupt.take()
@@ -237,19 +308,22 @@ impl MockBus {
 mod test {
     use super::*;
     use crate::rom::ines::test_ines_rom;
+    use crate::ppu::ppu::test::MockPPU;
+    use crate::ppu::ppu::test;
 
-    fn test_bus() -> Bus {
+    fn stub_bus() -> Bus<MockPPU> {
         Bus {
             ram: [0; 0x800],
             rom: test_ines_rom::test_rom(),
             nmi_interrupt: None,
             cycles: 0,
+            ppu: test::stub_ppu(),
         }
     }
 
     #[test]
     fn test_ram_mirrors() {
-        let bus: &mut dyn Mem = &mut test_bus();
+        let mut bus = stub_bus();
 
         bus.write(0x1005, 0x66);
         assert_eq!(bus.read(0x0005), 0x66);
@@ -260,5 +334,18 @@ mod test {
         assert_eq!(bus.read(0x0005), 0x55);
         assert_eq!(bus.read(0x0805), 0x55);
         assert_eq!(bus.read(0x1005), 0x55);
+    }
+
+    #[test]
+    fn test_ppu_register_mirrors() {
+        let mut bus = stub_bus();
+
+        bus.write(0x2008, 1);
+        assert_eq!(bus.ppu.ctrl, 1);
+
+        // from: https://wiki.nesdev.com/w/index.php/PPU_registers
+        //a write to $3456 is the same as a write to $2006.
+        bus.write(0x3456, 5);
+        assert_eq!(bus.ppu.addr, 5);
     }
 }

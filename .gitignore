@@ -1,2 +1,3 @@
 target/
 test_rom/ice_climber.nes
+test_rom/*.nes
