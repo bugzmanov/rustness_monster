@@ -1,4 +1,4 @@
-use crate::cpu::cpu::Mem;
+use crate::cpu::mem::Mem;
 use crate::rom::ines::Rom;
 
 // # Memory Map http://nesdev.com/NESDoc.pdf
@@ -35,6 +35,7 @@ use crate::rom::ines::Rom;
 pub struct Bus {
     pub ram: [u8; 0x800],
     pub rom: Rom,
+    pub nmi_interrupt: Option<u8>,
 }
 
 #[allow(dead_code)]
@@ -92,6 +93,10 @@ impl Bus {
         }
         self.rom.prg_rom[pos as usize]
     }
+
+    pub fn poll_nmi_status(&mut self) -> Option<u8> {
+        self.nmi_interrupt.take()
+    }
 }
 
 impl Mem for Bus {
@@ -115,6 +120,10 @@ impl Mem for Bus {
         let hi = self.read(pos + 1) as u16;
         (hi << 8) | (lo as u16)
     }
+    
+    fn poll_nmi_status(&mut self) -> Option<u8> { 
+         Bus::poll_nmi_status(self)
+    }
 }
 
 #[cfg(test)]
@@ -126,6 +135,7 @@ mod test {
         Bus {
             ram: [0; 0x800],
             rom: test_ines_rom::test_rom(),
+            nmi_interrupt: None,
         }
     }
 

@@ -5,7 +5,7 @@ use rustness::rom::ines::Rom;
 use std::fs::File;
 use std::io::Read;
 
-use rustness::cpu::cpu::DynamicMemWrapper;
+use rustness::cpu::mem::DynamicMemWrapper;
 use std::cell::RefCell;
 use std::{rc::Rc, time::Duration};
 
@@ -20,6 +20,7 @@ fn main() {
     let bus = Bus {
         ram: [0; 2048],
         rom: rom,
+        nmi_interrupt: None,
     };
 
     let pc = bus.read(0xfffc);
@@ -34,5 +35,4 @@ fn main() {
         ::std::thread::sleep(Duration::new(0, 50000000));
         println!("{}", rustness::cpu::trace(cpu));
     });
-
 }

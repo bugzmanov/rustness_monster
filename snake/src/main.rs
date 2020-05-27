@@ -1,5 +1,5 @@
-use rustness::cpu::cpu::DynamicMemWrapper;
-use rustness::cpu::cpu::Memory;
+use rustness::cpu::mem::DynamicMemWrapper;
+use rustness::cpu::mem::Memory;
 use rustness::cpu::cpu::CPU;
 use snake::screen::screen::Screen;
 use std::time::Duration;

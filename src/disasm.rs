@@ -1,4 +1,4 @@
-use crate::cpu::cpu::AddressingMode;
+use crate::cpu::mem::AddressingMode;
 use crate::cpu::opscode;
 use byteorder::{ByteOrder, LittleEndian};
 use std::cmp::min;
