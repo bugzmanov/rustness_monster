@@ -3,8 +3,8 @@ use cpu::CPU;
 use std::collections::HashMap;
 
 pub mod cpu;
-pub mod opscode;
 pub mod mem;
+pub mod opscode;
 
 pub fn trace(cpu: &CPU) -> String {
     let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
@@ -68,11 +68,11 @@ pub fn trace(cpu: &CPU) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
-    use mem::Memory;
+    use crate::bus::bus::MockBus;
 
     #[test]
     fn test_format_trace() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         mem.space[100] = 0xa2;
         mem.space[101] = 0x01;
         mem.space[102] = 0xca;

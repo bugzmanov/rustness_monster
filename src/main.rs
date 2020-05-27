@@ -5,7 +5,7 @@ use rustness::rom::ines::Rom;
 use std::fs::File;
 use std::io::Read;
 
-use rustness::cpu::mem::DynamicMemWrapper;
+use rustness::bus::bus::DynamicBusWrapper;
 use std::cell::RefCell;
 use std::{rc::Rc, time::Duration};
 
@@ -17,17 +17,13 @@ fn main() {
 
     let rom = Rom::load(&data).unwrap();
 
-    let bus = Bus {
-        ram: [0; 2048],
-        rom: rom,
-        nmi_interrupt: None,
-    };
+    let bus = Bus::new(rom);
 
     let pc = bus.read(0xfffc);
     let ffd = bus.read(0xfffd);
 
     let memory = Rc::from(RefCell::from(bus));
-    let mut mem_wraper = DynamicMemWrapper::new(memory.clone());
+    let mut mem_wraper = DynamicBusWrapper::new(memory.clone());
     let mut cpu = CPU::new(&mut mem_wraper);
     cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
 

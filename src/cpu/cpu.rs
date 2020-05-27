@@ -1,8 +1,7 @@
 // https://skilldrick.github.io/easy6502/
-use crate::cpu::opscode;
+use crate::bus::bus::CpuBus;
 use crate::cpu::mem::AddressingMode;
-use crate::cpu::mem::Memory;
-use crate::cpu::mem::Mem;
+use crate::cpu::opscode;
 use hex;
 use std::collections::HashMap;
 
@@ -31,7 +30,6 @@ bitflags! {
         const NEGATIV           = 0b10000000;
     }
 }
-
 
 const ZERO_PAGE: u16 = 0x0;
 const STACK: u16 = 0x0100;
@@ -82,7 +80,7 @@ pub struct CPU<'a> {
     pub(super) stack_pointer: u8,
     pub program_counter: u16,
     pub(super) flags: CpuFlags,
-    pub memory: &'a mut dyn Mem,
+    pub bus: &'a mut dyn CpuBus,
 }
 
 impl<'a> CPU<'a> {
@@ -164,6 +162,7 @@ impl<'a> CPU<'a> {
         self.stack_push(flag.bits);
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
 
+        self.bus.tick(interrupt.cpu_cycles);
         self.program_counter = self.mem_read_u16(interrupt.vector_addr);
     }
 
@@ -213,19 +212,19 @@ impl<'a> CPU<'a> {
     }
 
     pub(super) fn mem_read(&self, pos: u16) -> u8 {
-        self.memory.read(pos)
+        self.bus.read(pos)
     }
 
     pub(super) fn mem_read_u16(&self, pos: u16) -> u16 {
-        self.memory.read_u16(pos)
+        self.bus.read_u16(pos)
     }
 
     pub(super) fn mem_write(&mut self, pos: u16, data: u8) {
-        self.memory.write(pos, data);
+        self.bus.write(pos, data);
     }
 
     pub(super) fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        self.memory.write_u16(pos, data);
+        self.bus.write_u16(pos, data);
     }
 
     fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
@@ -357,8 +356,12 @@ impl<'a> CPU<'a> {
         }
     }
 
-    fn do_execute_ops(&mut self, program_end: usize, opscodes: &HashMap<u8, &'static opscode::OpsCode>) {
-        if let Some(_nmi) = self.memory.poll_nmi_status() {
+    fn do_execute_ops(
+        &mut self,
+        program_end: usize,
+        opscodes: &HashMap<u8, &'static opscode::OpsCode>,
+    ) {
+        if let Some(_nmi) = self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
         }
 
@@ -790,8 +793,8 @@ impl<'a> CPU<'a> {
             //todo: test for everything bellow
 
             /* NOP read */
-            0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xd4 | 0xf4 | 0x0c | 0x1c
-            | 0x3c | 0x5c | 0x7c | 0xdc | 0xfc => {
+            0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xd4 | 0xf4 | 0x0c | 0x1c | 0x3c
+            | 0x5c | 0x7c | 0xdc | 0xfc => {
                 ops.mode.read_u8(self);
                 /* do nothing */
             }
@@ -809,8 +812,8 @@ impl<'a> CPU<'a> {
             }
 
             /* NOPs */
-            0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xb2 | 0xd2
-            | 0xf2 => { /* do nothing */ }
+            0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xb2 | 0xd2 | 0xf2 => { /* do nothing */
+            }
 
             0x1a | 0x3a | 0x5a | 0x7a | 0xda | 0xfa => { /* do nothing */ }
 
@@ -854,8 +857,7 @@ impl<'a> CPU<'a> {
             0x9b => {
                 let data = self.register_a & self.register_x;
                 self.stack_pointer = data;
-                let mem_address =
-                    self.mem_read_u16(self.program_counter) + self.register_y as u16;
+                let mem_address = self.mem_read_u16(self.program_counter) + self.register_y as u16;
 
                 let data = ((mem_address >> 8) as u8 + 1) & self.stack_pointer;
                 ops.mode.write_u8(self, data)
@@ -871,8 +873,7 @@ impl<'a> CPU<'a> {
 
             /* AHX Absolute Y*/
             0x9f => {
-                let mem_address =
-                    self.mem_read_u16(self.program_counter) + self.register_y as u16;
+                let mem_address = self.mem_read_u16(self.program_counter) + self.register_y as u16;
 
                 let data = self.register_a & self.register_x & (mem_address >> 8) as u8;
                 ops.mode.write_u8(self, data);
@@ -880,8 +881,7 @@ impl<'a> CPU<'a> {
 
             /* SHX */
             0x9e => {
-                let mem_address =
-                    self.mem_read_u16(self.program_counter) + self.register_y as u16;
+                let mem_address = self.mem_read_u16(self.program_counter) + self.register_y as u16;
 
                 // todo if cross page boundry {
                 //     mem_address &= (self.x as u16) << 8;
@@ -892,8 +892,7 @@ impl<'a> CPU<'a> {
 
             /* SHY */
             0x9c => {
-                let mem_address =
-                    self.mem_read_u16(self.program_counter) + self.register_x as u16;
+                let mem_address = self.mem_read_u16(self.program_counter) + self.register_x as u16;
                 // todo if cross oage boundry {
                 //     mem_address &= (self.y as u16) << 8;
                 // }
@@ -903,15 +902,16 @@ impl<'a> CPU<'a> {
             _ => panic!("Unknown ops code"),
         }
 
+        self.bus.tick(ops.cycles);
+
         // if there were no jumps, advance program counter
         // todo: find more elegant way
         if program_counter_state == self.program_counter {
             self.program_counter += (ops.len - 1) as u16;
         }
-
     }
 
-    pub fn new<'b>(_mem: &'b mut dyn Mem) -> CPU<'b> {
+    pub fn new<'b>(bus: &'b mut dyn CpuBus) -> CPU<'b> {
         return CPU {
             register_a: 0,
             register_x: 0,
@@ -919,7 +919,7 @@ impl<'a> CPU<'a> {
             stack_pointer: STACK_SIZE,
             program_counter: 0,
             flags: CpuFlags::from_bits_truncate(0b00000000),
-            memory: _mem,
+            bus: bus,
         };
     }
 }
@@ -927,6 +927,7 @@ impl<'a> CPU<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::bus::bus::MockBus;
 
     #[test]
     fn test_transform() {
@@ -935,7 +936,7 @@ mod test {
 
     #[test]
     fn test_0xa9_load_into_register_a() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("a9 8d"), 100);
         assert_eq!(cpu.register_a, 0x8d);
@@ -944,7 +945,7 @@ mod test {
 
     #[test]
     fn test_larger_program() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(
             &CPU::transform("a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02"),
@@ -958,7 +959,7 @@ mod test {
 
     #[test]
     fn test_0x48_pha() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("48"), 100);
@@ -969,7 +970,7 @@ mod test {
 
     #[test]
     fn test_0x68_pla() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("a9 ff 48 a9 00 68"), 100);
         assert_eq!(cpu.stack_pointer, 0xFF);
@@ -979,7 +980,7 @@ mod test {
 
     #[test]
     fn test_0x48_pla_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("a9 00 48 a9 01 68"), 100);
         assert!(cpu.flags.contains(CpuFlags::ZERO));
@@ -987,14 +988,14 @@ mod test {
 
     #[test]
     fn test_stack_overflowing() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("68"), 100);
     }
 
     #[test]
     fn test_0x18_clc() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
@@ -1005,7 +1006,7 @@ mod test {
 
     #[test]
     fn test_0x38_sec() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         cpu.interpret(&CPU::transform("38"), 100);
@@ -1015,7 +1016,7 @@ mod test {
 
     #[test]
     fn test_0x85_sta() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.interpret(&CPU::transform("85 10"), 100);
@@ -1025,7 +1026,7 @@ mod test {
 
     #[test]
     fn test_0x95_sta() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.register_x = 0x50;
@@ -1036,7 +1037,7 @@ mod test {
 
     #[test]
     fn test_0x8d_sta() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("8d 00 02"), 100);
@@ -1046,7 +1047,7 @@ mod test {
 
     #[test]
     fn test_0x9d_sta_absolute_x() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.register_x = 0x50;
@@ -1057,7 +1058,7 @@ mod test {
 
     #[test]
     fn test_0x99_sta_absolute_y() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 101;
         cpu.register_y = 0x66;
@@ -1068,7 +1069,7 @@ mod test {
 
     #[test]
     fn test_0x81_sta() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 2;
         cpu.mem_write(0x2, 0x05);
@@ -1083,7 +1084,7 @@ mod test {
 
     #[test]
     fn test_091_sta() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_y = 0x10;
         cpu.mem_write(0x2, 0x05);
@@ -1098,7 +1099,7 @@ mod test {
 
     #[test]
     fn test_0x69_adc() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x10;
         cpu.interpret(&CPU::transform("69 02"), 100);
@@ -1108,7 +1109,7 @@ mod test {
 
     #[test]
     fn test_0x69_adc_carry_zero_flag() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x81;
         cpu.interpret(&CPU::transform("69 7f"), 100);
@@ -1120,7 +1121,7 @@ mod test {
 
     #[test]
     fn test_0x69_adc_overflow_cary_flag() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x8a;
         cpu.interpret(&CPU::transform("69 8a"), 100);
@@ -1131,7 +1132,7 @@ mod test {
 
     #[test]
     fn test_0xe9_sbc() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x10;
         cpu.interpret(&CPU::transform("e9 02"), 100);
@@ -1144,7 +1145,7 @@ mod test {
 
     #[test]
     fn test_0xe9_sbc_negative() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x02;
         cpu.interpret(&CPU::transform("e9 03"), 100);
@@ -1155,7 +1156,7 @@ mod test {
 
     #[test]
     fn test_0xe9_sbc_overflow() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x50;
         cpu.interpret(&CPU::transform("e9 b0"), 100);
@@ -1167,7 +1168,7 @@ mod test {
 
     #[test]
     fn test_0x29_and_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("29 90"), 100); //0b10010000
@@ -1178,7 +1179,7 @@ mod test {
 
     #[test]
     fn test_0x49_eor_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("49 07"), 100); //0b00000111
@@ -1189,7 +1190,7 @@ mod test {
 
     #[test]
     fn test_0x09_ora_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("09 07"), 100); //0b00000111
@@ -1200,7 +1201,7 @@ mod test {
 
     #[test]
     fn test_0x0a_asl_accumulator() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("0a"), 100);
@@ -1211,7 +1212,7 @@ mod test {
 
     #[test]
     fn test_0x06_asl_memory() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x10, 0b01000001);
         cpu.interpret(&CPU::transform("06 10"), 100);
@@ -1221,7 +1222,7 @@ mod test {
 
     #[test]
     fn test_0x06_asl_memory_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x10, 0b10000000);
         cpu.interpret(&CPU::transform("06 10"), 100);
@@ -1233,7 +1234,7 @@ mod test {
 
     #[test]
     fn test_0xf6_inc_memory_zero_page_x() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 1;
         cpu.mem_write(0x10, 127);
@@ -1244,7 +1245,7 @@ mod test {
 
     #[test]
     fn test_0x46_lsr_memory_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x10, 0b00000001);
         cpu.interpret(&CPU::transform("46 10"), 100);
@@ -1256,7 +1257,7 @@ mod test {
 
     #[test]
     fn test_0x2e_rol_memory_flags() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x1510, 0b10000001);
         cpu.interpret(&CPU::transform("2e 10 15"), 100);
@@ -1266,7 +1267,7 @@ mod test {
 
     #[test]
     fn test_0x2e_rol_memory_flags_carry() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b00000001);
@@ -1277,7 +1278,7 @@ mod test {
 
     #[test]
     fn test_0x6e_ror_memory_flags_carry() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b01000010);
@@ -1288,7 +1289,7 @@ mod test {
 
     #[test]
     fn test_0x6e_zero_flag() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b00000001);
@@ -1298,7 +1299,7 @@ mod test {
 
     #[test]
     fn test_0x6a_ror_accumulator_zero_falg() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 1;
         cpu.interpret(&CPU::transform("6a"), 100);
@@ -1309,7 +1310,7 @@ mod test {
 
     #[test]
     fn test_0xbe_ldx_absolute_y() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x1166, 55);
         cpu.register_y = 0x66;
@@ -1319,7 +1320,7 @@ mod test {
 
     #[test]
     fn test_0xb4_ldy_zero_page_x() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x66, 55);
         cpu.register_x = 0x06;
@@ -1329,7 +1330,7 @@ mod test {
 
     #[test]
     fn test_0xc8_iny() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_y = 127;
         cpu.interpret(&CPU::transform("c8"), 100);
@@ -1339,7 +1340,7 @@ mod test {
 
     #[test]
     fn test_0xe8_inx() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 0xff;
         cpu.interpret(&CPU::transform("e8"), 100);
@@ -1349,7 +1350,7 @@ mod test {
 
     #[test]
     fn test_0x6c_jmp_indirect() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.mem_write(0x0120, 0xfc);
         cpu.mem_write(0x0121, 0xba);
@@ -1359,7 +1360,7 @@ mod test {
 
     #[test]
     fn test_0x4c_jmp_absolute() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("4c 34 12"), 100);
         assert_eq!(cpu.program_counter, 0x1234);
@@ -1367,7 +1368,7 @@ mod test {
 
     #[test]
     fn test_0xea_nop() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.flags.insert(CpuFlags::NEGATIV);
@@ -1387,7 +1388,7 @@ mod test {
 
     #[test]
     fn test_0xaa_tax() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 66;
         cpu.interpret(&CPU::transform("aa"), 100);
@@ -1396,7 +1397,7 @@ mod test {
 
     #[test]
     fn test_0xa8_tay() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 66;
         cpu.interpret(&CPU::transform("a8"), 100);
@@ -1405,7 +1406,7 @@ mod test {
 
     #[test]
     fn test_0xba_tsx() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("ba"), 100);
         assert_eq!(cpu.register_x, 0xff);
@@ -1414,7 +1415,7 @@ mod test {
 
     #[test]
     fn test_0x8a_txa() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 66;
         cpu.interpret(&CPU::transform("8a"), 100);
@@ -1423,7 +1424,7 @@ mod test {
 
     #[test]
     fn test_0x9a_txs() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_x = 0;
         cpu.interpret(&CPU::transform("9a"), 100);
@@ -1433,7 +1434,7 @@ mod test {
 
     #[test]
     fn test_0x98_tya() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_y = 66;
         cpu.interpret(&CPU::transform("98"), 100);
@@ -1442,7 +1443,7 @@ mod test {
 
     #[test]
     fn test_0x20_jsr() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         let pc = 100; //cpu.program_counter;
         cpu.interpret(&CPU::transform("20 04 06"), 100);
@@ -1454,7 +1455,7 @@ mod test {
 
     #[test]
     fn test_0x60_rts() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         /*
             JSR init
@@ -1472,7 +1473,7 @@ mod test {
 
     #[test]
     fn test_0x40_rti() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.flags.bits = 0b11000001;
         cpu.program_counter = 0x100;
@@ -1489,7 +1490,7 @@ mod test {
 
     #[test]
     fn test_0xc9_cmp_immidiate() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0x6;
         cpu.interpret(&CPU::transform("c9 05"), 100);
@@ -1518,7 +1519,7 @@ mod test {
 
     #[test]
     fn test_0xd0_bne() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         // jump
         cpu.flags.remove(CpuFlags::ZERO);
@@ -1533,7 +1534,7 @@ mod test {
 
     #[test]
     fn test_0xd0_bne_snippet() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         /*
             LDX #$08
@@ -1550,7 +1551,7 @@ mod test {
 
     #[test]
     fn test_0x24_bit() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b00000010;
         cpu.mem_write(0x10, 0b10111101);
@@ -1563,7 +1564,7 @@ mod test {
 
     #[test]
     fn test_unofficial_0xc7_dcp() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 2;
         cpu.mem_write(0x10, 3);
@@ -1578,7 +1579,7 @@ mod test {
 
     #[test]
     fn test_unofficial_0x2f_rla() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b10000011;
         cpu.mem_write(0x1510, 0b10000001);
@@ -1590,7 +1591,7 @@ mod test {
 
     #[test]
     fn test_unofficial_0xcb_axs() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b10000011;
         cpu.register_x = 0b10000001;
@@ -1605,7 +1606,7 @@ mod test {
 
     #[test]
     fn test_unofficial_0x6b_arr() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010000;
 
@@ -1620,7 +1621,7 @@ mod test {
 
     #[test]
     fn test_unoffical_0x0b_anc() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("0b 90"), 100); //0b10010000
@@ -1632,7 +1633,7 @@ mod test {
 
     #[test]
     fn test_0x00_brk() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         mem.space[0xfffe] = 110;
         mem.space[0xffff] = 0;
         let mut cpu = CPU::new(&mut mem);
@@ -1657,31 +1658,29 @@ mod test {
 
     #[test]
     fn test_0x00_nmi() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         mem.nmi_interrupt = Some(1u8);
-        mem.space[0xfffA] = 103;
+        mem.space[0xfffA] = 104;
         mem.space[0xfffB] = 0;
         let mut cpu = CPU::new(&mut mem);
 
         /*
             DEX
-            BRK
+            JMP 106
 
             nmi:
             LDX #$05
             RTI
         */
-        
-        cpu.interpret(
-            &CPU::transform("ca 00 00 a2 05 40"),
-            100,
-        ); //0b10010000
+
+        cpu.interpret(&CPU::transform("ca 4c 6A 00 a2 05 40"), 100); //0b10010000
         assert_eq!(cpu.register_x, 4);
+        assert_eq!(mem.cycles, 21);
     }
 
     #[test]
     fn test_ololo() {
-        let mut mem = Memory::new();
+        let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 0b00000010;
         cpu.mem_write(0x10, 0b10111101);

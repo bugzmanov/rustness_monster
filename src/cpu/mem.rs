@@ -1,15 +1,6 @@
 use crate::cpu::cpu::CPU;
-use byteorder::{ByteOrder, LittleEndian};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 const ZERO_PAGE: u16 = 0x0;
-
-
-pub struct Memory {
-    pub space: [u8; 0x10000],
-    pub nmi_interrupt: Option<u8>,
-}
 
 pub trait Mem {
     fn write(&mut self, pos: u16, data: u8);
@@ -17,68 +8,6 @@ pub trait Mem {
 
     fn read(&self, pos: u16) -> u8;
     fn read_u16(&self, pos: u16) -> u16;
-
-    fn poll_nmi_status(&mut self) -> Option<u8>;
-}
-
-impl Mem for Memory {
-    fn write(&mut self, pos: u16, data: u8) {
-        self.space[pos as usize] = data
-    }
-
-    fn read(&self, pos: u16) -> u8 {
-        self.space[pos as usize]
-    }
-
-    fn read_u16(&self, pos: u16) -> u16 {
-        LittleEndian::read_u16(&self.space[pos as usize..])
-    }
-
-    fn write_u16(&mut self, pos: u16, data: u16) {
-        LittleEndian::write_u16(&mut self.space[pos as usize..], data)
-    }
-     
-    fn poll_nmi_status(&mut self) -> Option<u8> { 
-        self.nmi_interrupt.take()
-    }
-}
-pub struct DynamicMemWrapper {
-    mem: Rc<RefCell<dyn Mem>>,
-}
-
-impl DynamicMemWrapper {
-    pub fn new(data: Rc<RefCell<dyn Mem>>) -> Self {
-        DynamicMemWrapper { mem: data }
-    }
-}
-
-impl Mem for DynamicMemWrapper {
-    fn write(&mut self, pos: u16, data: u8) {
-        self.mem.borrow_mut().write(pos, data);
-    }
-
-    fn write_u16(&mut self, pos: u16, data: u16) {
-        self.mem.borrow_mut().write_u16(pos, data);
-    }
-    fn read(&self, pos: u16) -> u8 {
-        self.mem.borrow().read(pos)
-    }
-    fn read_u16(&self, pos: u16) -> u16 {
-        self.mem.borrow().read_u16(pos)
-    }
-
-    fn poll_nmi_status(&mut self) -> std::option::Option<u8> { 
-        self.mem.borrow_mut().poll_nmi_status() 
-    }
-}
-
-impl Memory {
-    pub fn new() -> Self {
-        Memory {
-            space: [0; 0x10000],
-            nmi_interrupt: None,
-        }
-    }
 }
 
 #[derive(Debug)]

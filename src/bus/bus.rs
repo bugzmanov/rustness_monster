@@ -1,5 +1,8 @@
 use crate::cpu::mem::Mem;
 use crate::rom::ines::Rom;
+use byteorder::{ByteOrder, LittleEndian};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 // # Memory Map http://nesdev.com/NESDoc.pdf
 //
@@ -36,6 +39,7 @@ pub struct Bus {
     pub ram: [u8; 0x800],
     pub rom: Rom,
     pub nmi_interrupt: Option<u8>,
+    pub cycles: usize,
 }
 
 #[allow(dead_code)]
@@ -49,6 +53,15 @@ impl Bus {
     const IO_MIRRORS: u16 = 0x2008;
     const IO_MIRRORS_END: u16 = 0x3FFF;
     const PRG_ROM: u16 = 0x8000;
+
+    pub fn new(rom: Rom) -> Self {
+        Bus {
+            ram: [0; 2048],
+            rom: rom,
+            nmi_interrupt: None,
+            cycles: 0,
+        }
+    }
 
     fn map_mirrors(pos: u16) -> u16 {
         match pos {
@@ -97,6 +110,15 @@ impl Bus {
     pub fn poll_nmi_status(&mut self) -> Option<u8> {
         self.nmi_interrupt.take()
     }
+
+    pub fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+    }
+}
+
+pub trait CpuBus: Mem {
+    fn poll_nmi_status(&mut self) -> Option<u8>;
+    fn tick(&mut self, cycles: u8);
 }
 
 impl Mem for Bus {
@@ -120,9 +142,94 @@ impl Mem for Bus {
         let hi = self.read(pos + 1) as u16;
         (hi << 8) | (lo as u16)
     }
-    
-    fn poll_nmi_status(&mut self) -> Option<u8> { 
-         Bus::poll_nmi_status(self)
+}
+
+impl CpuBus for Bus {
+    fn poll_nmi_status(&mut self) -> Option<u8> {
+        Bus::poll_nmi_status(self)
+    }
+
+    fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+    }
+}
+
+pub struct MockBus {
+    pub space: [u8; 0x10000],
+    pub nmi_interrupt: Option<u8>,
+    pub cycles: usize,
+}
+
+impl Mem for MockBus {
+    fn write(&mut self, pos: u16, data: u8) {
+        self.space[pos as usize] = data
+    }
+
+    fn read(&self, pos: u16) -> u8 {
+        self.space[pos as usize]
+    }
+
+    fn read_u16(&self, pos: u16) -> u16 {
+        LittleEndian::read_u16(&self.space[pos as usize..])
+    }
+
+    fn write_u16(&mut self, pos: u16, data: u16) {
+        LittleEndian::write_u16(&mut self.space[pos as usize..], data)
+    }
+}
+
+pub struct DynamicBusWrapper {
+    bus: Rc<RefCell<dyn CpuBus>>,
+}
+
+impl DynamicBusWrapper {
+    pub fn new(data: Rc<RefCell<dyn CpuBus>>) -> Self {
+        DynamicBusWrapper { bus: data }
+    }
+}
+
+impl Mem for DynamicBusWrapper {
+    fn write(&mut self, pos: u16, data: u8) {
+        self.bus.borrow_mut().write(pos, data);
+    }
+
+    fn write_u16(&mut self, pos: u16, data: u16) {
+        self.bus.borrow_mut().write_u16(pos, data);
+    }
+    fn read(&self, pos: u16) -> u8 {
+        self.bus.borrow().read(pos)
+    }
+    fn read_u16(&self, pos: u16) -> u16 {
+        self.bus.borrow().read_u16(pos)
+    }
+}
+
+impl CpuBus for DynamicBusWrapper {
+    fn poll_nmi_status(&mut self) -> std::option::Option<u8> {
+        self.bus.borrow_mut().poll_nmi_status()
+    }
+
+    fn tick(&mut self, cycles: u8) {
+        self.bus.borrow_mut().tick(cycles);
+    }
+}
+
+impl CpuBus for MockBus {
+    fn poll_nmi_status(&mut self) -> Option<u8> {
+        self.nmi_interrupt.take()
+    }
+
+    fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+    }
+}
+impl MockBus {
+    pub fn new() -> Self {
+        MockBus {
+            space: [0; 0x10000],
+            nmi_interrupt: None,
+            cycles: 0,
+        }
     }
 }
 
@@ -136,6 +243,7 @@ mod test {
             ram: [0; 0x800],
             rom: test_ines_rom::test_rom(),
             nmi_interrupt: None,
+            cycles: 0,
         }
     }
 
