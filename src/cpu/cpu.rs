@@ -154,6 +154,7 @@ impl<'a> CPU<'a> {
     }
 
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
+        println!("INTERRUPT");
         self.stack_push_u16(self.program_counter);
         let mut flag = self.flags.clone();
         flag.set(CpuFlags::BREAK, interrupt.b_flag_mask & 0b010000 == 1);
@@ -896,7 +897,6 @@ impl<'a> CPU<'a> {
                 let data = self.register_y & ((mem_address >> 8) as u8 + 1);
                 ops.mode.write_u8(self, data);
             }
-            _ => panic!("Unknown ops code"),
         }
 
         self.bus.tick(ops.cycles);

@@ -1,17 +1,16 @@
 use crate::ppu::registers::status::StatusRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::control::ControlRegister;
-use std::cell::RefCell;
 
 pub struct NesPPU {
+    chr_rom: Vec<u8>,
     ctrl: ControlRegister,
     mask: MaskRegister,
-    status: RefCell<StatusRegister>,
+    status: StatusRegister,
     oamaddr: u8,
     oamdata: u8,
     scroll: u8,
-    addr: u8,
-    data: u8,
+    addr: Addr,
     oamdma: u8,
     vram: [u8; 2048],
     oam: [u8; 64 * 4],
@@ -21,33 +20,81 @@ pub struct NesPPU {
     nmi_interrupt: Option<u8>,
 }
 
+struct Addr {
+    value: (u8, u8),
+    hi_ptr: bool,
+}
+
+impl Addr {
+    pub fn new() -> Self {
+        Addr {
+            value: (0, 0), // high byte first, lo byte second
+            hi_ptr: true
+        }
+    }
+
+    pub fn set(&mut self, data: u16) {
+        self.value.0 = (data >> 8) as u8;
+        self.value.1 = (data & 0xff) as u8;
+    }
+
+    pub fn udpate(&mut self, data: u8) {
+        if self.hi_ptr {
+            self.value.0 = data;
+        } else {
+            self.value.1 = data;
+        }
+
+        self.hi_ptr = !self.hi_ptr;
+    }
+
+    pub fn increment(&mut self, inc: u8) {
+        let lo = self.value.1;
+        self.value.1 = self.value.1.wrapping_add(inc);
+        if lo > self.value.1 {
+            self.value.0 = self.value.0.wrapping_add(1);
+        }
+    }
+    pub fn reset_latch(&mut self) {
+        self.hi_ptr =  true;
+    }
+
+    pub fn read(&self) -> u16 {
+        ((self.value.0 as u16) << 8) | (self.value.1 as u16)
+    }
+}
+
 pub trait PPU {
     fn write_to_ctrl(&mut self, value: u8);
     fn write_to_mask(&mut self, value: u8);
-    fn read_status(&self) -> u8; //todo: this will have to be &mut
+    fn read_status(&mut self) -> u8; //todo: this will have to be &mut
     fn write_to_oam_addr(&mut self, value: u8);
     fn write_to_oam_data(&mut self, value: u8);
     fn read_oam_data(&self) -> u8;
     fn write_to_scroll(&mut self, value: u8);
     fn write_to_ppu_addr(&mut self, value: u8);
     fn write_to_data(&mut self, value: u8);
-    fn read_data(&self) -> u8;
+    fn read_data(&mut self) -> u8;
     fn write_to_oam_dma(&mut self, value: u8);
     fn tick(&mut self, cycles: u8);
     fn poll_nmi_interrupt(& mut self) -> Option<u8>;
 }
 
 impl NesPPU {
-    pub fn new() -> Self {
+    pub fn new_empty_rom() -> Self {
+        NesPPU::new(vec![0; 2048])
+    }
+
+    pub fn new(chr_rom: Vec<u8>) -> Self {
         NesPPU {
+            chr_rom: chr_rom, 
             ctrl: ControlRegister::new(),
             mask: MaskRegister::new(),
-            status: RefCell::from(StatusRegister::new()),
+            status: StatusRegister::new(),
             oamaddr: 0,
             oamdata: 0,
             scroll: 0,
-            addr: 0,
-            data: 0,
+            addr: Addr::new(),
             oamdma: 0,
             vram: [0; 2048],
             oam: [0; 64 * 4],
@@ -56,13 +103,27 @@ impl NesPPU {
             nmi_interrupt: None
         }
     }
+
+    fn mirror_vram_addr(addr: u16) -> u16 {
+        addr & 0b10111111111111 - 0x2000//todo: implement
+    }
+
+    fn increment_vram_addr(&mut self) {
+        self.addr.increment(self.ctrl.vram_addr_increment());
+       
+        if self.addr.read() > 0x3fff { //todo: fix copy-paste
+            self.addr.set(self.addr.read() & 0b11111111111111); //mirror down addr above 0x3fff
+        }
+
+    }
+
 }
 
 impl PPU for NesPPU {
     fn write_to_ctrl(&mut self, value: u8) {
         let before_nmi_status = self.ctrl.generate_vblank_nmi();
         self.ctrl.update(value);
-        if(!before_nmi_status && self.ctrl.generate_vblank_nmi() && self.status.borrow().is_in_vblank()) {
+        if !before_nmi_status && self.ctrl.generate_vblank_nmi() && self.status.is_in_vblank() {
             self.nmi_interrupt = Some(1);
         }
     }
@@ -71,13 +132,10 @@ impl PPU for NesPPU {
         self.mask.update(value);
     }
 
-    fn read_status(&self) -> u8 {
-        let data = self.status.borrow().snapshot();
-        self.status.borrow_mut().reset_vblank_status();
-        if data != 0 {
-            println!("{}", data);
-        }
-        //todo: this will have to be &mut
+    fn read_status(&mut self) -> u8 {
+        let data = self.status.snapshot();
+        self.status.reset_vblank_status();
+        self.addr.reset_latch();
         data
     }
 
@@ -92,12 +150,38 @@ impl PPU for NesPPU {
 
     fn write_to_scroll(&mut self, value: u8) {}
 
-    fn write_to_ppu_addr(&mut self, value: u8) {}
+    fn write_to_ppu_addr(&mut self, value: u8) {
+        self.addr.udpate(value);
+        if self.addr.read() > 0x3fff {
+            self.addr.set(self.addr.read() & 0b11111111111111); //mirror down addr above 0x3fff
+        }
+    }
 
-    fn write_to_data(&mut self, value: u8) {}
+    fn write_to_data(&mut self, value: u8) {
+        let addr = self.addr.read();
+        match addr {
+            0     ..=0x1fff => panic!("attempt to write to chr rom space {}", addr),
+            0x2000..=0x2fff => self.vram[NesPPU::mirror_vram_addr(addr) as usize] = value,
+            0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
+            0x3f00..=0x3fff => /* todo: implement working with palette */ {},
+            _ => panic!("unexpected access to mirrored space {}", addr),
+        }        
+        self.increment_vram_addr();
+    }
 
-    fn read_data(&self) -> u8 {
-        0
+    
+    fn read_data(&mut self) -> u8 {
+        let addr = self.addr.read();
+ 
+        self.increment_vram_addr();
+
+        match addr {
+            0     ..=0x1fff => self.chr_rom[addr as usize],
+            0x2000..=0x2fff => self.vram[NesPPU::mirror_vram_addr(addr) as usize],
+            0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
+            0x3f00..=0x3fff => /* todo: implement working with palette */ {0u8},
+            _ => panic!("unexpected access to mirrored space {}", addr),
+        }       
     }
 
     fn write_to_oam_dma(&mut self, value: u8) {}
@@ -110,7 +194,7 @@ impl PPU for NesPPU {
             self.line += 1;
             
             if self.line == 241 && self.cycles > 0 {
-                self.status.borrow_mut().set_vblank_status(true);
+                self.status.set_vblank_status(true);
                 
                 if self.ctrl.generate_vblank_nmi() {
                     self.nmi_interrupt = Some(1);
@@ -119,7 +203,7 @@ impl PPU for NesPPU {
 
             if self.line == 261 {
                 self.line = 0; //todo -1 actually
-                self.status.borrow_mut().reset_vblank_status();
+                self.status.reset_vblank_status();
             }
         }
 
@@ -185,7 +269,7 @@ pub mod test {
         fn write_to_mask(&mut self, value: u8) {
             self.mask = value;
         }
-        fn read_status(&self) -> u8 {
+        fn read_status(&mut self) -> u8 {
             self.status
         }
         fn write_to_oam_addr(&mut self, value: u8) {
@@ -206,7 +290,7 @@ pub mod test {
         fn write_to_data(&mut self, value: u8) {
             self.data = value;
         }
-        fn read_data(&self) -> u8 {
+        fn read_data(&mut self) -> u8 {
             self.data
         }
         fn write_to_oam_dma(&mut self, value: u8) {
@@ -236,5 +320,110 @@ pub mod test {
             ticks: 0,
             line: 0,
         }
+    }
+
+
+    #[test]
+    fn test_ppu_vram_writes() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x05);
+        ppu.write_to_data(0x66);
+
+        assert_eq!(ppu.vram[0x0305], 0x66);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ppu_writing_to_chr_rom_is_prohibited() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ppu_addr(0x03);
+        ppu.write_to_ppu_addr(0x05);
+        ppu.write_to_data(0x66);
+    }
+
+    #[test]
+    fn test_ppu_vram_reads() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ctrl(0);
+        ppu.vram[0x0305] = 0x66;
+
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x05);
+
+        assert_eq!(ppu.read_data(), 0x66);
+        assert_eq!(ppu.addr.read(), 0x2306)
+    }
+
+    #[test]
+    fn test_ppu_vram_reads_cross_page() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ctrl(0);
+        ppu.vram[0x03ff] = 0x66;
+        ppu.vram[0x0400] = 0x77;
+
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0xff);
+
+        assert_eq!(ppu.read_data(), 0x66);
+        assert_eq!(ppu.read_data(), 0x77);
+    }
+
+    #[test]
+    fn test_ppu_vram_reads_step_32() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ctrl(0b100);
+        ppu.vram[0x03ff] = 0x66;
+        ppu.vram[0x03ff + 32] = 0x77;
+        ppu.vram[0x03ff + 64] = 0x88;
+
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0xff);
+
+        assert_eq!(ppu.read_data(), 0x66);
+        assert_eq!(ppu.read_data(), 0x77);
+        assert_eq!(ppu.read_data(), 0x88);
+    }
+
+    #[test]
+    fn test_read_status_resets_latch() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.vram[0x0305] = 0x66;
+
+        ppu.write_to_ppu_addr(0x21);
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x05);
+ 
+        assert_ne!(ppu.read_data(), 0x66); 
+
+        ppu.read_status();
+
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x05);
+        assert_eq!(ppu.read_data(), 0x66); 
+    }
+
+    #[test]
+    fn test_ppu_vram_mirroring() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ctrl(0);
+        ppu.vram[0x0305] = 0x66;
+
+        ppu.write_to_ppu_addr(0x63); //0x6305 -> 0x2305
+        ppu.write_to_ppu_addr(0x05);
+
+        assert_eq!(ppu.read_data(), 0x66);
+        // assert_eq!(ppu.addr.read(), 0x0306)
+    }
+
+    #[test]
+    fn test_read_status_resets_vblank() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.status.set_vblank_status(true);
+
+        let status = ppu.read_status();
+
+        assert_eq!(status>>7, 1);
+        assert_eq!(ppu.status.snapshot()>>7, 0);
     }
 }

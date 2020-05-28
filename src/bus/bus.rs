@@ -41,7 +41,7 @@ pub struct Bus<T: PPU> {
     pub rom: Rom,
     pub nmi_interrupt: Option<u8>,
     pub cycles: usize,
-    ppu: T,
+    ppu: RefCell<T>,
 }
 
 const ZERO_PAGE: u16 = 0x0;
@@ -66,12 +66,13 @@ fn map_mirrors(pos: u16) -> u16 {
 #[allow(dead_code)]
 impl<T: PPU> Bus<T> {
     pub fn new(rom: Rom) -> Bus<NesPPU> {
+        let chr_rom_copy = rom.chr_rom.clone(); // todo: this will bite me with mappers
         Bus {
             ram: [0; 2048],
             rom: rom,
             nmi_interrupt: None,
             cycles: 0,
-            ppu: NesPPU::new(),
+            ppu: RefCell::from(NesPPU::new(chr_rom_copy)), 
         }
     }
 
@@ -83,31 +84,31 @@ impl<T: PPU> Bus<T> {
             }
 
             0x2000 => {
-                self.ppu.write_to_ctrl(data);
+                self.ppu.borrow_mut().write_to_ctrl(data);
             }
             0x2001 => {
-                self.ppu.write_to_mask(data);
+                self.ppu.borrow_mut().write_to_mask(data);
             }
             0x2002 => panic!("attempt to write to PPU status register"),
             0x2003 => {
-                self.ppu.write_to_oam_addr(data);
+                self.ppu.borrow_mut().write_to_oam_addr(data);
             }
             0x2004 => {
-                self.ppu.write_to_oam_data(data);
+                self.ppu.borrow_mut().write_to_oam_data(data);
             }
             0x2005 => {
-                self.ppu.write_to_scroll(data);
+                self.ppu.borrow_mut().write_to_scroll(data);
             }
 
             0x2006 => {
-                self.ppu.write_to_ppu_addr(data);
+                self.ppu.borrow_mut().write_to_ppu_addr(data);
             }
 
             0x2007 => {
-                self.ppu.write_to_data(data);
+                self.ppu.borrow_mut().write_to_data(data);
             }
             0x4014 => {
-                self.ppu.write_to_oam_dma(data);
+                self.ppu.borrow_mut().write_to_oam_dma(data);
             }
 
             IO_MIRRORS..=IO_MIRRORS_END => {
@@ -151,9 +152,9 @@ impl<T: PPU> Bus<T> {
                 //todo why 4014??
                 panic!("attempt to read from write-only address {:x}", pos);
             }
-            0x2002 => self.ppu.read_status(),
-            0x2004 => self.ppu.read_oam_data(),
-            0x2007 => self.ppu.read_data(),
+            0x2002 => self.ppu.borrow_mut().read_status(),
+            0x2004 => self.ppu.borrow().read_oam_data(),
+            0x2007 => self.ppu.borrow_mut().read_data(),
 
             IO_MIRRORS..=IO_MIRRORS_END => {
                 //mirror IO registers
@@ -201,11 +202,6 @@ impl<T: PPU> Bus<T> {
         self.nmi_interrupt.take()
     }
 
-    pub fn tick(&mut self, cycles: u8) {
-        self.cycles += cycles as usize;
-        self.ppu.tick(cycles * 3); //todo: oh my..
-        self.nmi_interrupt = self.ppu.poll_nmi_interrupt();
-    }
 }
 
 pub trait CpuBus: Mem {
@@ -230,7 +226,9 @@ impl CpuBus for Bus<NesPPU> {
 
     fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
-        self.ppu.tick(cycles); //todo: different rate!
+        let mut ppu = self.ppu.borrow_mut();
+        ppu.tick(cycles * 3); //todo: oh my..
+        self.nmi_interrupt = ppu.poll_nmi_interrupt();
     }
 }
 
@@ -319,7 +317,7 @@ mod test {
             rom: test_ines_rom::test_rom(),
             nmi_interrupt: None,
             cycles: 0,
-            ppu: test::stub_ppu(),
+            ppu: RefCell::from(test::stub_ppu()),
         }
     }
 
@@ -343,11 +341,11 @@ mod test {
         let mut bus = stub_bus();
 
         bus.write(0x2008, 1);
-        assert_eq!(bus.ppu.ctrl, 1);
+        assert_eq!(bus.ppu.borrow().ctrl, 1);
 
         // from: https://wiki.nesdev.com/w/index.php/PPU_registers
         //a write to $3456 is the same as a write to $2006.
         bus.write(0x3456, 5);
-        assert_eq!(bus.ppu.addr, 5);
+        assert_eq!(bus.ppu.borrow().addr, 5);
     }
 }
