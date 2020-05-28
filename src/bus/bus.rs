@@ -1,8 +1,7 @@
 use crate::cpu::mem::Mem;
-use NesPPU::ppu::ppu::NesPPU;
-use PPU::ppu::ppu::PPU;
+use crate::ppu::ppu::NesPPU;
+use crate::ppu::ppu::PPU;
 use crate::rom::ines::Rom;
-use byteorder::{ByteOrder, LittleEndian};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -64,10 +63,8 @@ fn map_mirrors(pos: u16) -> u16 {
     }
 }
 
-
 #[allow(dead_code)]
 impl<T: PPU> Bus<T> {
-
     pub fn new(rom: Rom) -> Bus<NesPPU> {
         Bus {
             ram: [0; 2048],
@@ -78,34 +75,30 @@ impl<T: PPU> Bus<T> {
         }
     }
 
-
     pub fn write(&mut self, pos: u16, data: u8) {
         match pos {
-            0x00 ..=RAM_MIRRORS_END => {
+            0x00..=RAM_MIRRORS_END => {
                 let pos = map_mirrors(pos);
                 self.ram[pos as usize] = data;
-            },
-            
+            }
+
             0x2000 => {
                 self.ppu.write_to_ctrl(data);
             }
             0x2001 => {
-                self.ppu.write_to_mask(data);   
+                self.ppu.write_to_mask(data);
             }
-            0x2002 =>  {
-                panic!("attempt to write to PPU status register")
-            }
+            0x2002 => panic!("attempt to write to PPU status register"),
             0x2003 => {
                 self.ppu.write_to_oam_addr(data);
-
-            } 
+            }
             0x2004 => {
                 self.ppu.write_to_oam_data(data);
-            } 
+            }
             0x2005 => {
                 self.ppu.write_to_scroll(data);
-            } 
-            
+            }
+
             0x2006 => {
                 self.ppu.write_to_ppu_addr(data);
             }
@@ -117,51 +110,80 @@ impl<T: PPU> Bus<T> {
                 self.ppu.write_to_oam_dma(data);
             }
 
-            IO_MIRRORS..=IO_MIRRORS_END =>  { //mirror IO registers
+            IO_MIRRORS..=IO_MIRRORS_END => {
+                //mirror IO registers
                 self.write(pos & 0b10000000000111, data)
             }
 
-            //todo 0x4000 - 0x8000
+            0x4000..=0x4015 => {
+                //todo: implement
+                //ignore APU for now
+            }
 
-            PRG_ROM ..= PRG_ROM_END => {
+            0x4016 => {
+                //todo: implement
+                //ignore joypad 1 for now
+            }
+
+            0x4017 => {
+                //todo: implement
+                //ignore joypad 2 for now
+            }
+
+
+            //todo 0x4000 - 0x8000
+            PRG_ROM..=PRG_ROM_END => {
                 panic!("attempt to write to a ROM section: {:x}", pos); //sram?
             }
             _ => {
-                panic!("unimplemented");
+                unimplemented!("attempting to write to {:x}", pos);
             }
         }
     }
 
     pub fn read(&self, pos: u16) -> u8 {
         match pos {
-            0x0 ..=RAM_MIRRORS_END => {
+            0x0..=RAM_MIRRORS_END => {
                 let pos = map_mirrors(pos);
                 self.ram[pos as usize]
             }
-            0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => { //todo why 4014??
+            0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
+                //todo why 4014??
                 panic!("attempt to read from write-only address {:x}", pos);
             }
-            0x2002 => {
-                self.ppu.read_status()
-            }
-            0x2004 => {
-                self.ppu.read_oam_data()
-            }
-            0x2007 => {
-                self.ppu.read_data()
-            }
+            0x2002 => self.ppu.read_status(),
+            0x2004 => self.ppu.read_oam_data(),
+            0x2007 => self.ppu.read_data(),
 
-            IO_MIRRORS..=IO_MIRRORS_END =>  { //mirror IO registers
+            IO_MIRRORS..=IO_MIRRORS_END => {
+                //mirror IO registers
                 self.read(pos & 0b10000000000111)
             }
+            0x4000..=0x4014 => {
+                panic!("Attemp to read APU mem write-only address {:x}", pos)
+            }
+
+            0x4015 => {
+                //todo: implement ignore APU registers for now
+                0
+            }
+
+            0x4016 => {
+                //ignore joypad 1 for now
+                0
+            }
+
+            0x4017 => {
+                //ignore joypad 2 for now
+                0
+            }
+
 
             //todo 0x4000 - 0x8000
-            PRG_ROM..=PRG_ROM_END => {
-                self.read_prg_rom(pos)
-            }
+            PRG_ROM..=PRG_ROM_END => self.read_prg_rom(pos),
             _ => {
-                unimplemented!("")
-            }
+                unimplemented!("attempting to read from {:x}", pos);
+            },
         }
     }
 
@@ -181,6 +203,8 @@ impl<T: PPU> Bus<T> {
 
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
+        self.ppu.tick(cycles * 3); //todo: oh my..
+        self.nmi_interrupt = self.ppu.poll_nmi_interrupt();
     }
 }
 
@@ -194,21 +218,8 @@ impl Mem for Bus<NesPPU> {
         Bus::write(self, pos, data);
     }
 
-    fn write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
-        self.write(pos, lo);
-        self.write(pos + 1, hi);
-    }
-
     fn read(&self, pos: u16) -> u8 {
         Bus::read(self, pos)
-    }
-
-    fn read_u16(&self, pos: u16) -> u16 {
-        let lo = self.read(pos) as u16;
-        let hi = self.read(pos + 1) as u16;
-        (hi << 8) | (lo as u16)
     }
 }
 
@@ -259,7 +270,6 @@ impl CpuBus for DynamicBusWrapper {
     }
 }
 
-
 pub struct MockBus {
     pub space: [u8; 0x10000],
     pub nmi_interrupt: Option<u8>,
@@ -274,16 +284,7 @@ impl Mem for MockBus {
     fn read(&self, pos: u16) -> u8 {
         self.space[pos as usize]
     }
-
-    fn read_u16(&self, pos: u16) -> u16 {
-        LittleEndian::read_u16(&self.space[pos as usize..])
-    }
-
-    fn write_u16(&mut self, pos: u16, data: u16) {
-        LittleEndian::write_u16(&mut self.space[pos as usize..], data)
-    }
 }
-
 
 impl CpuBus for MockBus {
     fn poll_nmi_status(&mut self) -> Option<u8> {
@@ -294,6 +295,7 @@ impl CpuBus for MockBus {
         self.cycles += cycles as usize;
     }
 }
+
 impl MockBus {
     pub fn new() -> Self {
         MockBus {
@@ -307,9 +309,9 @@ impl MockBus {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::rom::ines::test_ines_rom;
-    use crate::ppu::ppu::test::MockPPU;
     use crate::ppu::ppu::test;
+    use crate::ppu::ppu::test::MockPPU;
+    use crate::rom::ines::test_ines_rom;
 
     fn stub_bus() -> Bus<MockPPU> {
         Bus {

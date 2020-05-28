@@ -1,6 +1,6 @@
 use rustness::bus::bus::Bus;
 use rustness::cpu::cpu::CPU;
-use rustness::ppu::ppu::PPU;
+use rustness::ppu::ppu::NesPPU;
 use rustness::rom::ines::Rom;
 
 use std::fs::File;
@@ -18,7 +18,7 @@ fn main() {
 
     let rom = Rom::load(&data).unwrap();
 
-    let bus = Bus::<PPU>::new(rom);
+    let bus = Bus::<NesPPU>::new(rom);
 
     let pc = bus.read(0xfffc);
     let ffd = bus.read(0xfffd);
@@ -29,7 +29,7 @@ fn main() {
     cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
 
     cpu.interpret_fn(0xffff, |cpu| {
-        ::std::thread::sleep(Duration::new(0, 50000000));
+        // ::std::thread::sleep(Duration::new(0, 50000));
         println!("{}", rustness::cpu::trace(cpu));
     });
 }

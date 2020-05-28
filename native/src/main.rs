@@ -9,7 +9,6 @@ use sdl2::rect::Rect;
 use std::time::Duration;
 use std::time::SystemTime;
 
-use rand::Rng;
 use rustness::rom::ines::Rom;
 use std::fs::File;
 use std::io::Read;
@@ -40,7 +39,7 @@ pub fn main() {
         .unwrap();
     let mut is_frame_1 = true;
     'running: loop {
-        texture.update(None, &pointer.data, 256 * 3);
+        texture.update(None, &pointer.data, 256 * 3).unwrap();
 
         for event in event_pump.poll_iter() {
             match event {
@@ -63,7 +62,7 @@ pub fn main() {
         }
 
         canvas.clear();
-        canvas.set_scale(3.0, 3.0);
+        canvas.set_scale(3.0, 3.0).unwrap();
         canvas
             .copy(&texture, None, Some(Rect::new(10, 10, 266, 250)))
             .unwrap();
@@ -99,11 +98,11 @@ pub fn main() {
         let mut tile_x = 0;
         let bank = (bank * 0x1000) as usize;
         // let bank = 0;
-        let mut rng = rand::thread_rng();
+        // let mut rng = rand::thread_rng();
         // let palette = rom_sprite_palette(&rom);
 
         for tile_n in 0..255 {
-            if (tile_n != 0 && tile_n % 20 == 0) {
+            if tile_n != 0 && tile_n % 20 == 0 {
                 tile_y += 10;
                 tile_x = 0;
             }

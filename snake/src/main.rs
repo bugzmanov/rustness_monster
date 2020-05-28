@@ -1,6 +1,6 @@
-use rustness::cpu::cpu::CPU;
 use rustness::bus::bus::DynamicBusWrapper;
 use rustness::bus::bus::MockBus;
+use rustness::cpu::cpu::CPU;
 use snake::screen::screen::Screen;
 use std::time::Duration;
 
