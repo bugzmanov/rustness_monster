@@ -13,6 +13,11 @@ const PRG_ROM_PAGE_SIZE: usize = 16384;
 const CHR_ROM_PAGE_SIZE: usize = 8192;
 const PRG_RAM_PAGE_SIZE: usize = 8192;
 
+pub enum Mirroring {
+    VERTICAL,
+    HORIZONTAL,
+}
+
 #[derive(Debug)]
 pub struct Rom {
     pub trainer: Option<Vec<u8>>,
@@ -36,6 +41,16 @@ bitflags! {
         const BATTERY_RAM        = 0b00000010;
         const TRAINER            = 0b00000100;
         const FOUR_SCREEN        = 0b00001000;
+    }
+}
+
+impl RomFlags {
+    pub fn mirroring(&self) -> Mirroring {
+        if self.contains(RomFlags::VERTICAL_MIRRORING) {
+            Mirroring::VERTICAL
+        } else {
+            Mirroring::HORIZONTAL
+        }
     }
 }
 

@@ -67,12 +67,13 @@ fn map_mirrors(pos: u16) -> u16 {
 impl<T: PPU> Bus<T> {
     pub fn new(rom: Rom) -> Bus<NesPPU> {
         let chr_rom_copy = rom.chr_rom.clone(); // todo: this will bite me with mappers
+        let mirroring = rom.rom_flags.mirroring();
         Bus {
             ram: [0; 2048],
             rom: rom,
             nmi_interrupt: None,
             cycles: 0,
-            ppu: RefCell::from(NesPPU::new(chr_rom_copy)), 
+            ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)), 
         }
     }
 

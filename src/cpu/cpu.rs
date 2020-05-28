@@ -154,7 +154,6 @@ impl<'a> CPU<'a> {
     }
 
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
-        println!("INTERRUPT");
         self.stack_push_u16(self.program_counter);
         let mut flag = self.flags.clone();
         flag.set(CpuFlags::BREAK, interrupt.b_flag_mask & 0b010000 == 1);

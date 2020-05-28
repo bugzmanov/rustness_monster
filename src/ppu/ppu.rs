@@ -1,9 +1,11 @@
 use crate::ppu::registers::status::StatusRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::control::ControlRegister;
+use crate::rom::ines::Mirroring;
 
 pub struct NesPPU {
     chr_rom: Vec<u8>,
+    mirroring: Mirroring,
     ctrl: ControlRegister,
     mask: MaskRegister,
     status: StatusRegister,
@@ -14,7 +16,6 @@ pub struct NesPPU {
     oamdma: u8,
     vram: [u8; 2048],
     oam: [u8; 64 * 4],
-
     line: usize,
     cycles:usize,
     nmi_interrupt: Option<u8>,
@@ -82,12 +83,13 @@ pub trait PPU {
 
 impl NesPPU {
     pub fn new_empty_rom() -> Self {
-        NesPPU::new(vec![0; 2048])
+        NesPPU::new(vec![0; 2048], Mirroring::HORIZONTAL)
     }
 
-    pub fn new(chr_rom: Vec<u8>) -> Self {
+    pub fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
         NesPPU {
             chr_rom: chr_rom, 
+            mirroring: mirroring, 
             ctrl: ControlRegister::new(),
             mask: MaskRegister::new(),
             status: StatusRegister::new(),
@@ -100,12 +102,30 @@ impl NesPPU {
             oam: [0; 64 * 4],
             line: 0,
             cycles: 0,
-            nmi_interrupt: None
+            nmi_interrupt: None,
+            
         }
     }
 
-    fn mirror_vram_addr(addr: u16) -> u16 {
-        addr & 0b10111111111111 - 0x2000//todo: implement
+    // Horizontal: 
+    //   [ A ] [ a ]
+    //   [ B ] [ b ]
+
+    // Vertical:
+    //   [ A ] [ B ]  
+    //   [ a ] [ b ]
+    fn mirror_vram_addr(&self, addr: u16) -> u16 {
+        let mirrored_vram = addr & 0b10111111111111; // mirror down 0x3000-0x3eff to 0x2000 - 0x2eff
+        let vram_index = mirrored_vram - 0x2000; // to vram vector
+        let name_table = vram_index / 0x400;
+        match (&self.mirroring, name_table) {
+            (Mirroring::VERTICAL, 2) | (Mirroring::VERTICAL, 3) => vram_index - 0x800,
+            (Mirroring::HORIZONTAL, 2) => vram_index - 0x400,
+            (Mirroring::HORIZONTAL, 1) => vram_index - 0x400,
+            (Mirroring::HORIZONTAL, 3) => vram_index - 0x800,
+            _ => vram_index
+
+        }
     }
 
     fn increment_vram_addr(&mut self) {
@@ -161,9 +181,9 @@ impl PPU for NesPPU {
         let addr = self.addr.read();
         match addr {
             0     ..=0x1fff => panic!("attempt to write to chr rom space {}", addr),
-            0x2000..=0x2fff => self.vram[NesPPU::mirror_vram_addr(addr) as usize] = value,
+            0x2000..=0x2fff => self.vram[self.mirror_vram_addr(addr) as usize] = value,
             0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
-            0x3f00..=0x3fff => /* todo: implement working with palette */ {},
+            0x3f00..=0x3fff => /* todo: implement working with palette */ {println!("write palette {:x} {:x}", addr, value);},
             _ => panic!("unexpected access to mirrored space {}", addr),
         }        
         self.increment_vram_addr();
@@ -177,9 +197,9 @@ impl PPU for NesPPU {
 
         match addr {
             0     ..=0x1fff => self.chr_rom[addr as usize],
-            0x2000..=0x2fff => self.vram[NesPPU::mirror_vram_addr(addr) as usize],
+            0x2000..=0x2fff => self.vram[self.mirror_vram_addr(addr) as usize],
             0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
-            0x3f00..=0x3fff => /* todo: implement working with palette */ {0u8},
+            0x3f00..=0x3fff => /* todo: implement working with palette */ {println!("read palette");0u8},
             _ => panic!("unexpected access to mirrored space {}", addr),
         }       
     }
@@ -359,10 +379,10 @@ pub mod test {
     fn test_ppu_vram_reads_cross_page() {
         let mut ppu = NesPPU::new_empty_rom();
         ppu.write_to_ctrl(0);
-        ppu.vram[0x03ff] = 0x66;
-        ppu.vram[0x0400] = 0x77;
+        ppu.vram[0x01ff] = 0x66;
+        ppu.vram[0x0200] = 0x77;
 
-        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x21);
         ppu.write_to_ppu_addr(0xff);
 
         assert_eq!(ppu.read_data(), 0x66);
@@ -373,17 +393,77 @@ pub mod test {
     fn test_ppu_vram_reads_step_32() {
         let mut ppu = NesPPU::new_empty_rom();
         ppu.write_to_ctrl(0b100);
-        ppu.vram[0x03ff] = 0x66;
-        ppu.vram[0x03ff + 32] = 0x77;
-        ppu.vram[0x03ff + 64] = 0x88;
+        ppu.vram[0x01ff] = 0x66;
+        ppu.vram[0x01ff + 32] = 0x77;
+        ppu.vram[0x01ff + 64] = 0x88;
 
-        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x21);
         ppu.write_to_ppu_addr(0xff);
 
         assert_eq!(ppu.read_data(), 0x66);
         assert_eq!(ppu.read_data(), 0x77);
         assert_eq!(ppu.read_data(), 0x88);
     }
+
+
+    // Horizontal: https://wiki.nesdev.com/w/index.php/Mirroring
+    //   [0x2000 A ] [0x2400 a ]
+    //   [0x2800 B ] [0x2C00 b ]
+    #[test]
+    fn test_vram_horizontal_mirror() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ppu_addr(0x24);
+        ppu.write_to_ppu_addr(0x05);
+
+        ppu.write_to_data(0x66); //write to a
+
+        ppu.write_to_ppu_addr(0x28);
+        ppu.write_to_ppu_addr(0x05);
+
+        ppu.write_to_data(0x77); //write to B
+
+
+        ppu.write_to_ppu_addr(0x20);
+        ppu.write_to_ppu_addr(0x05);
+
+        assert_eq!(ppu.read_data(), 0x66); //read from A
+
+        ppu.write_to_ppu_addr(0x2C);
+        ppu.write_to_ppu_addr(0x05);
+
+        assert_eq!(ppu.read_data(), 0x77); //read from b
+    }
+
+
+    // Vertical: https://wiki.nesdev.com/w/index.php/Mirroring
+    //   [0x2000 A ] [0x2400 B ]
+    //   [0x2800 a ] [0x2C00 b ]
+    #[test]
+    fn test_vram_vertical_mirror() {
+        let mut ppu = NesPPU::new(vec![0; 2048], Mirroring::VERTICAL);
+
+        ppu.write_to_ppu_addr(0x20);
+        ppu.write_to_ppu_addr(0x05);
+
+        ppu.write_to_data(0x66); //write to A
+
+        ppu.write_to_ppu_addr(0x2C);
+        ppu.write_to_ppu_addr(0x05);
+
+        ppu.write_to_data(0x77); //write to b
+
+
+        ppu.write_to_ppu_addr(0x28);
+        ppu.write_to_ppu_addr(0x05);
+
+        assert_eq!(ppu.read_data(), 0x66); //read from a
+
+        ppu.write_to_ppu_addr(0x24);
+        ppu.write_to_ppu_addr(0x05);
+
+        assert_eq!(ppu.read_data(), 0x77); //read from B
+    }
+
 
     #[test]
     fn test_read_status_resets_latch() {
