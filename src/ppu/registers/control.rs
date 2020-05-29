@@ -73,8 +73,8 @@ impl ControlRegister {
         } else {
             16
         }
-    } 
-    
+    }
+
     pub fn master_slave_select(&self) -> u8 {
         if !self.contains(ControlRegister::SPRITE_SIZE) {
             0
@@ -84,7 +84,7 @@ impl ControlRegister {
     }
 
     pub fn generate_vblank_nmi(&self) -> bool {
-        return self.contains(ControlRegister::GENERATE_NMI)
+        return self.contains(ControlRegister::GENERATE_NMI);
     }
 
     pub fn update(&mut self, data: u8) {

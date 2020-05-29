@@ -11,7 +11,6 @@ pub trait Mem {
         self.write(pos + 1, hi);
     }
 
-
     fn read(&self, pos: u16) -> u8;
 
     fn read_u16(&self, pos: u16) -> u16 {

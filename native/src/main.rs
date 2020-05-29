@@ -27,8 +27,8 @@ pub fn main() {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut frame = build_frame(0);
-    let mut frame2 = build_frame(1);
+    let frame = build_frame(0);
+    let frame2 = build_frame(1);
 
     let mut pointer = &frame;
 

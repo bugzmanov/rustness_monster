@@ -73,7 +73,7 @@ impl<T: PPU> Bus<T> {
             rom: rom,
             nmi_interrupt: None,
             cycles: 0,
-            ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)), 
+            ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)),
         }
     }
 
@@ -83,14 +83,15 @@ impl<T: PPU> Bus<T> {
                 let pos = map_mirrors(pos);
                 self.ram[pos as usize] = data;
             }
-
             0x2000 => {
                 self.ppu.borrow_mut().write_to_ctrl(data);
             }
             0x2001 => {
                 self.ppu.borrow_mut().write_to_mask(data);
             }
+
             0x2002 => panic!("attempt to write to PPU status register"),
+
             0x2003 => {
                 self.ppu.borrow_mut().write_to_oam_addr(data);
             }
@@ -104,12 +105,19 @@ impl<T: PPU> Bus<T> {
             0x2006 => {
                 self.ppu.borrow_mut().write_to_ppu_addr(data);
             }
-
             0x2007 => {
                 self.ppu.borrow_mut().write_to_data(data);
             }
             0x4014 => {
-                self.ppu.borrow_mut().write_to_oam_dma(data);
+                let mut buffer: [u8; 256] = [0; 256];
+                let hi: u16 = (data as u16) << 8;
+                for i in 0..255u16 {
+                    buffer[i as usize] = self.read(hi + i);
+                }
+
+                self.ppu.borrow_mut().write_oam_dma(&buffer);
+                let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
+                self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
             }
 
             IO_MIRRORS..=IO_MIRRORS_END => {
@@ -132,7 +140,6 @@ impl<T: PPU> Bus<T> {
                 //ignore joypad 2 for now
             }
 
-
             //todo 0x4000 - 0x8000
             PRG_ROM..=PRG_ROM_END => {
                 panic!("attempt to write to a ROM section: {:x}", pos); //sram?
@@ -150,8 +157,7 @@ impl<T: PPU> Bus<T> {
                 self.ram[pos as usize]
             }
             0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
-                //todo why 4014??
-                panic!("attempt to read from write-only address {:x}", pos);
+                panic!("Attempt to read from write-only PPU address {:x}", pos);
             }
             0x2002 => self.ppu.borrow_mut().read_status(),
             0x2004 => self.ppu.borrow().read_oam_data(),
@@ -161,12 +167,10 @@ impl<T: PPU> Bus<T> {
                 //mirror IO registers
                 self.read(pos & 0b10000000000111)
             }
-            0x4000..=0x4014 => {
-                panic!("Attemp to read APU mem write-only address {:x}", pos)
-            }
+            0x4000..=0x4013 => panic!("Attempt to read from write-only APU address {:x}", pos),
 
             0x4015 => {
-                //todo: implement ignore APU registers for now
+                //todo: implement APU register
                 0
             }
 
@@ -180,13 +184,19 @@ impl<T: PPU> Bus<T> {
                 0
             }
 
-
             //todo 0x4000 - 0x8000
             PRG_ROM..=PRG_ROM_END => self.read_prg_rom(pos),
             _ => {
                 unimplemented!("attempting to read from {:x}", pos);
-            },
+            }
         }
+    }
+
+    pub fn tick(&mut self, cycles: u16) {
+        self.cycles += cycles as usize;
+        let mut ppu = self.ppu.borrow_mut();
+        ppu.tick(cycles * 3); //todo: oh my..
+        self.nmi_interrupt = ppu.poll_nmi_interrupt();
     }
 
     fn read_prg_rom(&self, mut pos: u16) -> u8 {
@@ -202,7 +212,6 @@ impl<T: PPU> Bus<T> {
     pub fn poll_nmi_status(&mut self) -> Option<u8> {
         self.nmi_interrupt.take()
     }
-
 }
 
 pub trait CpuBus: Mem {
@@ -226,10 +235,7 @@ impl CpuBus for Bus<NesPPU> {
     }
 
     fn tick(&mut self, cycles: u8) {
-        self.cycles += cycles as usize;
-        let mut ppu = self.ppu.borrow_mut();
-        ppu.tick(cycles * 3); //todo: oh my..
-        self.nmi_interrupt = ppu.poll_nmi_interrupt();
+        Bus::<NesPPU>::tick(self, cycles as u16);
     }
 }
 
@@ -348,5 +354,30 @@ mod test {
         //a write to $3456 is the same as a write to $2006.
         bus.write(0x3456, 5);
         assert_eq!(bus.ppu.borrow().addr, 5);
+    }
+
+    #[test]
+    fn test_write_to_0x4014_oam_dma() {
+        let mut bus = stub_bus();
+        let base = 0x0800;
+        let mut expected_result: [u8; 256] = [0; 256];
+        for i in 0..255u8 {
+            bus.write(base + i as u16, i);
+            expected_result[i as usize] = i;
+        }
+
+        bus.write(0x4014, 0x08);
+
+        assert_eq!(bus.cycles, 513);
+
+        assert!(
+            bus.ppu
+                .borrow()
+                .oam
+                .iter()
+                .zip(expected_result.iter())
+                .all(|(a, b)| a == b),
+            "oam data arrrays are not equal"
+        );
     }
 }

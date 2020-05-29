@@ -33,7 +33,6 @@ bitflags! {
 }
 
 impl StatusRegister {
-
     pub fn new() -> Self {
         StatusRegister::from_bits_truncate(0b00000000)
     }
