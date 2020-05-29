@@ -2,6 +2,7 @@ use crate::ppu::registers::control::ControlRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::status::StatusRegister;
 use crate::rom::ines::Mirroring;
+use crate::screen::frame::Frame;
 
 pub struct NesPPU {
     chr_rom: Vec<u8>,
@@ -18,6 +19,7 @@ pub struct NesPPU {
     line: usize,
     cycles: usize,
     nmi_interrupt: Option<u8>,
+    palette_table: [u8; 32],
 }
 
 struct Addr {
@@ -80,6 +82,11 @@ pub trait PPU {
     fn poll_nmi_interrupt(&mut self) -> Option<u8>;
 }
 
+pub trait Renderer {
+    fn render() -> Frame;
+}
+
+
 impl NesPPU {
     pub fn new_empty_rom() -> Self {
         NesPPU::new(vec![0; 2048], Mirroring::HORIZONTAL)
@@ -101,6 +108,7 @@ impl NesPPU {
             line: 0,
             cycles: 0,
             nmi_interrupt: None,
+            palette_table: [0; 32],
         }
     }
 
@@ -185,6 +193,7 @@ impl PPU for NesPPU {
             0x3f00..=0x3fff =>
             /* todo: implement working with palette */
             {
+                self.palette_table[(addr - 0x3f00) as usize] = value;
                 println!("write palette {:x} {:x}", addr, value);
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
@@ -205,7 +214,7 @@ impl PPU for NesPPU {
             /* todo: implement working with palette */
             {
                 println!("read palette");
-                0u8
+                self.palette_table[(addr - 0x3f00) as usize]
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
         }

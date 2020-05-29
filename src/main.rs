@@ -30,6 +30,6 @@ fn main() {
 
     cpu.interpret_fn(0xffff, |cpu| {
         // ::std::thread::sleep(Duration::new(0, 50000));
-        println!("{}", rustness::cpu::trace(cpu));
+        // println!("{}", rustness::cpu::trace(cpu));
     });
 }

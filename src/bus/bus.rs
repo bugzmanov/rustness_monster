@@ -35,15 +35,6 @@ use std::rc::Rc;
 // | Zero Page     |       |               |
 // |_______________| $0000 |_______________|
 //
-
-pub struct Bus<T: PPU> {
-    pub ram: [u8; 0x800],
-    pub rom: Rom,
-    pub nmi_interrupt: Option<u8>,
-    pub cycles: usize,
-    ppu: RefCell<T>,
-}
-
 const ZERO_PAGE: u16 = 0x0;
 const STACK: u16 = 0x0100;
 const RAM: u16 = 0x0200;
@@ -54,6 +45,14 @@ const IO_MIRRORS: u16 = 0x2008;
 const IO_MIRRORS_END: u16 = 0x3FFF;
 const PRG_ROM: u16 = 0x8000;
 const PRG_ROM_END: u16 = 0xFFFF;
+
+pub struct Bus<T: PPU> {
+    pub ram: [u8; 0x800],
+    pub rom: Rom,
+    pub nmi_interrupt: Option<u8>,
+    pub cycles: usize,
+    ppu: RefCell<T>,
+}
 
 fn map_mirrors(pos: u16) -> u16 {
     match pos {
@@ -108,6 +107,7 @@ impl<T: PPU> Bus<T> {
             0x2007 => {
                 self.ppu.borrow_mut().write_to_data(data);
             }
+            // https://wiki.nesdev.com/w/index.php/PPU_programmer_reference#OAM_DMA_.28.244014.29_.3E_write
             0x4014 => {
                 let mut buffer: [u8; 256] = [0; 256];
                 let hi: u16 = (data as u16) << 8;
@@ -360,10 +360,8 @@ mod test {
     fn test_write_to_0x4014_oam_dma() {
         let mut bus = stub_bus();
         let base = 0x0800;
-        let mut expected_result: [u8; 256] = [0; 256];
         for i in 0..255u8 {
             bus.write(base + i as u16, i);
-            expected_result[i as usize] = i;
         }
 
         bus.write(0x4014, 0x08);
@@ -375,8 +373,8 @@ mod test {
                 .borrow()
                 .oam
                 .iter()
-                .zip(expected_result.iter())
-                .all(|(a, b)| a == b),
+                .zip(0..255u8)
+                .all(|(a, b)| *a == b),
             "oam data arrrays are not equal"
         );
     }
