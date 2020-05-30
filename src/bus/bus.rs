@@ -46,12 +46,13 @@ const IO_MIRRORS_END: u16 = 0x3FFF;
 const PRG_ROM: u16 = 0x8000;
 const PRG_ROM_END: u16 = 0xFFFF;
 
-pub struct Bus<T: PPU> {
+pub struct Bus<'call, T: PPU + 'call> {
     pub ram: [u8; 0x800],
     pub rom: Rom,
     pub nmi_interrupt: Option<u8>,
     pub cycles: usize,
     ppu: RefCell<T>,
+    interrupt_fn: Box<dyn FnMut(&NesPPU) + 'call>,
 }
 
 fn map_mirrors(pos: u16) -> u16 {
@@ -63,8 +64,11 @@ fn map_mirrors(pos: u16) -> u16 {
 }
 
 #[allow(dead_code)]
-impl<T: PPU> Bus<T> {
-    pub fn new(rom: Rom) -> Bus<NesPPU> {
+impl<'a, T: PPU> Bus<'a, T> {
+    pub fn new<'call, F>(rom: Rom, interrupt_fn: F) -> Bus<'call, NesPPU>
+    where
+        F: FnMut(&NesPPU) + 'call,
+    {
         let chr_rom_copy = rom.chr_rom.clone(); // todo: this will bite me with mappers
         let mirroring = rom.rom_flags.mirroring();
         Bus {
@@ -73,6 +77,7 @@ impl<T: PPU> Bus<T> {
             nmi_interrupt: None,
             cycles: 0,
             ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)),
+            interrupt_fn: Box::from(interrupt_fn),
         }
     }
 
@@ -219,7 +224,7 @@ pub trait CpuBus: Mem {
     fn tick(&mut self, cycles: u8);
 }
 
-impl Mem for Bus<NesPPU> {
+impl Mem for Bus<'_, NesPPU> {
     fn write(&mut self, pos: u16, data: u8) {
         Bus::write(self, pos, data);
     }
@@ -229,8 +234,12 @@ impl Mem for Bus<NesPPU> {
     }
 }
 
-impl CpuBus for Bus<NesPPU> {
+impl CpuBus for Bus<'_, NesPPU> {
     fn poll_nmi_status(&mut self) -> Option<u8> {
+        if self.nmi_interrupt.is_some() {
+            (self.interrupt_fn)(&*self.ppu.borrow());
+        }
+
         Bus::poll_nmi_status(self)
     }
 
@@ -318,13 +327,15 @@ mod test {
     use crate::ppu::ppu::test::MockPPU;
     use crate::rom::ines::test_ines_rom;
 
-    fn stub_bus() -> Bus<MockPPU> {
+    fn stub_bus() -> Bus<'static, MockPPU> {
+        let func = |_: &NesPPU| {};
         Bus {
             ram: [0; 0x800],
             rom: test_ines_rom::test_rom(),
             nmi_interrupt: None,
             cycles: 0,
             ppu: RefCell::from(test::stub_ppu()),
+            interrupt_fn: Box::from(func),
         }
     }
 

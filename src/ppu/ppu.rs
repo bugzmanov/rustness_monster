@@ -3,6 +3,8 @@ use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::status::StatusRegister;
 use crate::rom::ines::Mirroring;
 use crate::screen::frame::Frame;
+use crate::screen::pallete;
+use rand::Rng;
 
 pub struct NesPPU {
     chr_rom: Vec<u8>,
@@ -83,9 +85,54 @@ pub trait PPU {
 }
 
 pub trait Renderer {
-    fn render() -> Frame;
+    fn render(ppu: &NesPPU) -> Frame;
 }
 
+pub fn render(ppu: &NesPPU) -> Frame {
+    let mut frame = Frame::new();
+    let bank = ppu.ctrl.bknd_pattern_addr();
+
+    let mut rng = rand::thread_rng();
+    // let color_1 = rng.gen_range(10, 50);
+    // let color_2 = color_1 - 10;
+
+    for i in 0..0x3c0 {
+        let tile = ppu.vram[i] as u16;
+        let tile_x = i % 32;
+        let tile_y = i / 32;
+        let tile = &ppu.chr_rom[(bank + tile * 16) as usize..(bank + tile * 16 + 15) as usize];
+
+        for y in 0..7 {
+            let mut upper = tile[y];
+            let mut lower = tile[y + 8];
+
+            for x in (0..7).rev() {
+                let value = (1 & upper) << 1 | (1 & lower);
+                upper = upper >> 1;
+                lower = lower >> 1;
+                let rgb = match value {
+                    0 => pallete::YUV[0x01],
+                    1 => pallete::YUV[0x23],
+                    // 1 => pallete::YUV[color_1],
+                    // 2 => pallete::YUV[color_2],
+                    2 => pallete::YUV[0x27],
+                    3 => pallete::YUV[0x2b],
+                    _ => panic!("can't be"),
+                };
+                frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
+            }
+        }
+
+
+
+        // frame.set_pixel(x, 00, (ppu.vram[100], ppu.vram[101], ppu.vram[201]));
+        // frame.set_pixel(x, 01, (0xff, 0xff, 0xff));
+        // frame.set_pixel(x, 02, (0xff, 0xff, 0xff));
+        // frame.set_pixel(x, 03, (0xff, 0xff, 0xff));
+        // frame.set_pixel(x, 100, rgb: (0xff, u8, u8));
+    }
+    frame
+}
 
 impl NesPPU {
     pub fn new_empty_rom() -> Self {

@@ -1,5 +1,6 @@
 use rustness::bus::bus::Bus;
 use rustness::cpu::cpu::CPU;
+use rustness::ppu::ppu;
 use rustness::ppu::ppu::NesPPU;
 use rustness::rom::ines::Rom;
 
@@ -18,7 +19,11 @@ fn main() {
 
     let rom = Rom::load(&data).unwrap();
 
-    let bus = Bus::<NesPPU>::new(rom);
+    let func = |z: &NesPPU| {
+        // let frame = ppu::render(z);
+    };
+
+    let bus = Bus::<NesPPU>::new(rom, func);
 
     let pc = bus.read(0xfffc);
     let ffd = bus.read(0xfffd);
