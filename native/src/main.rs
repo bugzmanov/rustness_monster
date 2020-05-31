@@ -14,6 +14,11 @@ use std::time::SystemTime;
 use std::fs::File;
 use std::io::Read;
 
+
+use std::cell::RefCell;
+use std::{rc::Rc};
+
+
 fn main() {
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     let mut file = File::open("test_rom/pacman.nes").unwrap();
@@ -42,6 +47,9 @@ fn main() {
     canvas.set_scale(3.0, 3.0).unwrap();
     let mut prev_time = SystemTime::now();
 
+    let trace = Rc::from(RefCell::from(false));
+
+    let trace_rc = trace.clone();
     let func = move |z: &NesPPU| {
 
         for event in event_pump.poll_iter() {
@@ -51,6 +59,10 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => std::process::exit(0),
+                Event::KeyDown { .. } => {
+                    let upd = !*trace_rc.borrow();
+                    trace_rc.replace(upd);
+                }
                 _ => {}
             }
         }
@@ -62,7 +74,7 @@ fn main() {
         canvas
             .copy(&texture, None, Some(Rect::new(0, 0, 256, 240)))
             .unwrap();
-        canvas.set_scale(2.5, 2.5).unwrap();
+        canvas.set_scale(3.0, 3.0).unwrap();
         canvas.present();
 
         let elapsed_time = SystemTime::now()
@@ -89,9 +101,12 @@ fn main() {
     let mut cpu = CPU::new(&mut bus);
     cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
 
+    let trace_rc2 = trace.clone();
     cpu.interpret_fn(0xffff, |cpu| {
         // ::std::thread::sleep(Duration::new(0, 50000));
-        // println!("{}", rustness::cpu::trace(cpu));
+        if(*trace_rc2.borrow()) {
+            // println!("{}", rustness::cpu::trace(cpu));
+        }
     });
 
 }

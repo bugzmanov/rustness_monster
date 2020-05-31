@@ -1,11 +1,19 @@
 [package]
-name = "nativenes"
+name = "native"
 version = "0.1.0"
 authors = ["bugzmanov <bugzmanov@gmail.com>"]
-# path="src/pattern_table.rs"
+path="src/pattern_rtable.rs"
 edition = "2018"
-default-run="nativenes"
+default-run="nes"
+# default-run="palette"
 
+[[bin]]
+name = "palette"
+path = "src/pattern_table.rs"
+
+[[bin]]
+name = "nes"
+path = "src/main.rs"
 
 [dependencies]
 sdl2 = "0.34.0"

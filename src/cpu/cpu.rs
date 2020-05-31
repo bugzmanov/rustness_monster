@@ -4,6 +4,7 @@ use crate::cpu::mem::AddressingMode;
 use crate::cpu::opscode;
 use hex;
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 bitflags! {
 
@@ -19,6 +20,7 @@ bitflags! {
 ///  | +--------------- Overflow Flag
 ///  +----------------- Negative Flag
 ///
+    #[derive(Serialize, Deserialize)]
     pub struct CpuFlags: u8 {
         const CARRY             = 0b00000001;
         const ZERO              = 0b00000010;
@@ -73,14 +75,16 @@ mod interrupt {
     };
 }
 
+
 pub struct CPU<'a> {
+    
     pub(super) register_a: u8,
     pub(super) register_x: u8,
     pub(super) register_y: u8,
     pub(super) stack_pointer: u8,
     pub program_counter: u16,
     pub(super) flags: CpuFlags,
-    pub bus: &'a mut dyn CpuBus,
+    pub bus: &'a mut dyn CpuBus ,
 }
 
 impl<'a> CPU<'a> {

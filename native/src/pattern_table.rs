@@ -106,13 +106,13 @@ pub fn main() {
                 tile_y += 10;
                 tile_x = 0;
             }
-            let tile = &rom.chr_rom[(bank + tile_n * 16)..(bank + tile_n * 16 + 15)];
+            let tile = &rom.chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
 
-            for y in 0..7 {
+            for y in 0..=7 {
                 let mut upper = tile[y];
                 let mut lower = tile[y + 8];
 
-                for x in (0..7).rev() {
+                for x in (0..=7).rev() {
                     let value = (1 & upper) << 1 | (1 & lower);
                     upper = upper >> 1;
                     lower = lower >> 1;

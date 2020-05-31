@@ -80,7 +80,7 @@ pub trait PPU {
     fn write_to_data(&mut self, value: u8);
     fn read_data(&mut self) -> u8;
     fn write_oam_dma(&mut self, value: &[u8; 256]);
-    fn tick(&mut self, cycles: u16);
+    fn tick(&mut self, cycles: u16)-> bool;
     fn poll_nmi_interrupt(&mut self) -> Option<u8>;
 }
 
@@ -97,29 +97,43 @@ pub fn render(ppu: &NesPPU) -> Frame {
     // let color_2 = color_1 - 10;
 
     for i in 0..0x3c0 {
+    // for i in 0..2 {
         let tile = ppu.vram[i] as u16;
         let tile_x = i % 32;
         let tile_y = i / 32;
-        let tile = &ppu.chr_rom[(bank + tile * 16) as usize..(bank + tile * 16 + 15) as usize];
+        let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
-        for y in 0..7 {
+        // let pallet
+
+        let palette = &ppu.palette_table[16..=31];
+        // let palette = &ppu.palette_table[29..=31];
+
+        for y in 0..=7 {
             let mut upper = tile[y];
             let mut lower = tile[y + 8];
 
-            for x in (0..7).rev() {
+            for x in (0..=7).rev() {
                 let value = (1 & upper) << 1 | (1 & lower);
                 upper = upper >> 1;
                 lower = lower >> 1;
                 let rgb = match value {
                     0 => pallete::YUV[0x01],
-                    1 => pallete::YUV[0x23],
-                    // 1 => pallete::YUV[color_1],
-                    // 2 => pallete::YUV[color_2],
-                    2 => pallete::YUV[0x27],
-                    3 => pallete::YUV[0x2b],
+                    // 1 => pallete::YUV[0x23],
+                    // 2 => pallete::YUV[0x27],
+                    // 3 => pallete::YUV[0x2b],
+                    // _ => panic!("can't be"),
+
+                    // 0 => pallete::YUV[ppu.palette_table[0] as usize],
+                    1 => pallete::YUV[palette[0] as usize],
+                    2 => pallete::YUV[palette[1] as usize],
+                    3 => pallete::YUV[palette[2] as usize],
                     _ => panic!("can't be"),
                 };
+                // frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
+                // println!("x={},y={}", tile_x*8 +x, tile_y*8 +y);
+
                 frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
+                // frame.set_pixel(tile_x*7 + x, tile_y*7 + y, (0xff, 0, 0))
             }
         }
 
@@ -131,6 +145,65 @@ pub fn render(ppu: &NesPPU) -> Frame {
         // frame.set_pixel(x, 03, (0xff, 0xff, 0xff));
         // frame.set_pixel(x, 100, rgb: (0xff, u8, u8));
     }
+
+    for i in (0..ppu.oam_data.len()).step_by(4).rev() {
+        // if(ppu.oam_data[i] != 0) {
+            let flip_horizontal = if (ppu.oam_data[i+2]>>6 & 1 == 1) { true } else { false }; 
+            let bank: u16 = ppu.ctrl.sprt_pattern_addr();
+            let tile = ppu.oam_data[i+1] as u16;
+            let tile_x = ppu.oam_data[i+3] as usize;
+            let tile_y = ppu.oam_data[i] as usize; 
+            // println!("idx={},tile={},x={},y={}",i, tile, tile_x, tile_y);
+            let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
+
+            // let pallet
+    
+            // let palette = &ppu.palette_table[16..=31];
+    
+            for y in 0..=7 {
+                let mut upper = tile[y];
+                let mut lower = tile[y + 8];
+                // frame.set_pixel(tile_x , tile_y + y, (255,0,0));
+                // frame.set_pixel(tile_x + 8, tile_y + y, (255,0,0));
+                'ololo: for x in (0..=7).rev() {
+                    let value = (1 & upper) << 1 | (1 & lower);
+                    upper = upper >> 1;
+                    lower = lower >> 1;
+                    let rgb = match value {
+                        // 0 => pallete::YUV[ppu.palette_table[0] as usize],
+                        // 0 => continue 'ololo,//pallete::YUV[0x01],
+                        0 => pallete::YUV[0x08],
+                        1 => pallete::YUV[0x23],
+                        2 => pallete::YUV[0x27],
+                        3 => pallete::YUV[0x2b],
+                        _ => panic!("can't be"),
+    
+                        // 0 => pallete::YUV[ppu.palette_table[0] as usize],
+                        // 1 => pallete::YUV[palette[0] as usize],
+                        // 2 => pallete::YUV[palette[1] as usize],
+                        // 3 => pallete::YUV[palette[2] as usize],
+                        // _ => panic!("can't be"),
+                    };
+                    // frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
+                    // println!("x={},y={}", tile_x*8 +x, tile_y*8 +y);
+                    if flip_horizontal {
+                        frame.set_pixel(tile_x + 8-x, tile_y + y, rgb);
+                    } else {
+                        frame.set_pixel(tile_x + x, tile_y + y, rgb);
+                    }
+                    // frame.set_pixel(tile_x*7 + x, tile_y*7 + y, (0xff, 0, 0))
+                }
+            }
+    
+        // }
+    }
+
+    // for y in 0..239 {
+
+    //     for x in 0..255 {
+    //         frame.set_pixel(x, y, (0xff, 0, 0));
+    //     }
+    // }
     frame
 }
 
@@ -187,6 +260,15 @@ impl NesPPU {
             self.addr.set(self.addr.read() & 0b11111111111111); //mirror down addr above 0x3fff
         }
     }
+
+    fn has_sprite_hit(&self, cycle: usize) -> bool {
+        let y = self.oam_data[0] as usize;
+        let x = self.oam_data[3] as usize;
+        // (y == self.line) && self.registers.is_sprite_enable()
+        (y == self.line) && x <= cycle && self.mask.show_sprites()
+    }
+
+ 
 }
 
 impl PPU for NesPPU {
@@ -241,7 +323,7 @@ impl PPU for NesPPU {
             /* todo: implement working with palette */
             {
                 self.palette_table[(addr - 0x3f00) as usize] = value;
-                println!("write palette {:x} {:x}", addr, value);
+                // println!("write palette {:x} {:x}", addr, value);
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
@@ -275,29 +357,41 @@ impl PPU for NesPPU {
         // println!("write to oam dma");
     }
 
-    fn tick(&mut self, cycles: u16) {
+    fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
         // println!("{}: {}", self.line, self.cycles);
         if self.cycles > 341 {
-            self.cycles = self.cycles % 341;
+
+            if self.has_sprite_hit(self.cycles) {
+                self.status.set_sprite_zero_hit(true);
+            }
+
+            self.cycles = self.cycles - 341;
             self.line += 1;
 
-            if self.line == 241 && self.cycles > 0 {
+            if self.line == 241 {
                 self.status.set_vblank_status(true);
-
+                self.status.set_sprite_zero_hit(false);
                 if self.ctrl.generate_vblank_nmi() {
                     self.nmi_interrupt = Some(1);
                 }
             }
 
-            if self.line == 261 {
-                self.line = 0; //todo -1 actually
+            if self.line >= 261 {
+                self.line = 0; 
+                self.nmi_interrupt = None;
+                self.status.set_sprite_zero_hit(false);
+                // self.status.
                 self.status.reset_vblank_status();
+                return true;
             }
         }
+        return false;
     }
 
     fn poll_nmi_interrupt(&mut self) -> Option<u8> {
+        self.status.set_sprite_zero_hit(true);
+        self.status.set_sprite_overflow(true);
         self.nmi_interrupt.take()
     }
 

@@ -114,15 +114,18 @@ impl<'a, T: PPU> Bus<'a, T> {
             }
             // https://wiki.nesdev.com/w/index.php/PPU_programmer_reference#OAM_DMA_.28.244014.29_.3E_write
             0x4014 => {
+                println!("write to oam dam");
                 let mut buffer: [u8; 256] = [0; 256];
                 let hi: u16 = (data as u16) << 8;
-                for i in 0..255u16 {
+                for i in 0..256u16 {
                     buffer[i as usize] = self.read(hi + i);
                 }
 
                 self.ppu.borrow_mut().write_oam_dma(&buffer);
-                let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
-                self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
+
+                // todo: handle this eventually 
+                // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
+                // self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
             }
 
             IO_MIRRORS..=IO_MIRRORS_END => {
@@ -197,11 +200,12 @@ impl<'a, T: PPU> Bus<'a, T> {
         }
     }
 
-    pub fn tick(&mut self, cycles: u16) {
+    pub fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
         let mut ppu = self.ppu.borrow_mut();
-        ppu.tick(cycles * 3); //todo: oh my..
+        let render = ppu.tick(cycles * 3); //todo: oh my..
         self.nmi_interrupt = ppu.poll_nmi_interrupt();
+        render
     }
 
     fn read_prg_rom(&self, mut pos: u16) -> u8 {
@@ -236,15 +240,18 @@ impl Mem for Bus<'_, NesPPU> {
 
 impl CpuBus for Bus<'_, NesPPU> {
     fn poll_nmi_status(&mut self) -> Option<u8> {
-        if self.nmi_interrupt.is_some() {
-            (self.interrupt_fn)(&*self.ppu.borrow());
-        }
+        // if self.nmi_interrupt.is_some() {
+        //     (self.interrupt_fn)(&*self.ppu.borrow());
+        // }
 
         Bus::poll_nmi_status(self)
     }
 
     fn tick(&mut self, cycles: u8) {
-        Bus::<NesPPU>::tick(self, cycles as u16);
+        let render = Bus::<NesPPU>::tick(self, cycles as u16);
+        if render {
+            (self.interrupt_fn)(&*self.ppu.borrow());
+        }
     }
 }
 
