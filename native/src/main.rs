@@ -22,6 +22,7 @@ use std::{rc::Rc};
 fn main() {
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     let mut file = File::open("test_rom/pacman.nes").unwrap();
+    // let mut file = File::open("test_rom/nestest.nes").unwrap();
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
 
@@ -59,7 +60,7 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => std::process::exit(0),
-                Event::KeyDown { .. } => {
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
                     let upd = !*trace_rc.borrow();
                     trace_rc.replace(upd);
                 }
@@ -100,12 +101,13 @@ fn main() {
     // let mut mem_wraper = DynamicBusWrapper::new(memory);
     let mut cpu = CPU::new(&mut bus);
     cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
+    // cpu.program_counter = 0xC000; //0x8000 as u16 + pc as u16;
 
     let trace_rc2 = trace.clone();
     cpu.interpret_fn(0xffff, |cpu| {
         // ::std::thread::sleep(Duration::new(0, 50000));
-        if(*trace_rc2.borrow()) {
-            // println!("{}", rustness::cpu::trace(cpu));
+        if *trace_rc2.borrow() {
+            println!("{}", rustness::cpu::trace(cpu));
         }
     });
 

@@ -1,3 +1,5 @@
+// http://www.dustmop.io/blog/2015/04/28/nes-graphics-part-1/
+
 use crate::ppu::registers::control::ControlRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::status::StatusRegister;
@@ -390,8 +392,6 @@ impl PPU for NesPPU {
     }
 
     fn poll_nmi_interrupt(&mut self) -> Option<u8> {
-        self.status.set_sprite_zero_hit(true);
-        self.status.set_sprite_overflow(true);
         self.nmi_interrupt.take()
     }
 
@@ -477,8 +477,9 @@ pub mod test {
         fn write_oam_dma(&mut self, value: &[u8; 256]) {
             self.oam = value.clone();
         }
-        fn tick(&mut self, cycles: u16) {
+        fn tick(&mut self, cycles: u16) -> bool{
             self.ticks += cycles as usize;
+            false
         }
         fn poll_nmi_interrupt(&mut self) -> Option<u8> {
             None

@@ -206,13 +206,21 @@ impl<'a> CPU<'a> {
     }
 
     fn stack_push_u16(&mut self, data: u16) {
-        self.mem_write_u16((STACK as u16) + self.stack_pointer as u16, data);
-        self.stack_pointer = self.stack_pointer.wrapping_sub(2);
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.stack_push(hi);
+        self.stack_push(lo);
+        // self.mem_write_u16((STACK as u16) + self.stack_pointer as u16, data);
+        // self.stack_pointer = self.stack_pointer.wrapping_sub(2);
     }
 
     fn stack_pop_u16(&mut self) -> u16 {
-        self.stack_pointer = self.stack_pointer.wrapping_add(2);
-        self.mem_read_u16((STACK as u16) + self.stack_pointer as u16)
+        let lo = self.stack_pop() as u16;
+        let hi = self.stack_pop() as u16;
+
+        hi  << 8 | lo
+        // self.stack_pointer = self.stack_pointer.wrapping_add(2);
+        // self.mem_read_u16((STACK as u16) + self.stack_pointer as u16)
     }
 
     pub(super) fn mem_read(&self, pos: u16) -> u8 {
@@ -235,6 +243,8 @@ impl<'a> CPU<'a> {
         let data = mode.read_u8(self);
         if data <= compare_with {
             self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
         }
 
         self.udpate_cpu_flags(compare_with.wrapping_sub(data));
@@ -415,12 +425,18 @@ impl<'a> CPU<'a> {
 
             /* PHP */
             0x08 => {
-                self.stack_push(self.flags.bits);
+                //http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
+                let mut flags = self.flags.clone();
+                flags.insert(CpuFlags::BREAK);
+                flags.insert(CpuFlags::BREAK2);
+                self.stack_push(flags.bits());
             }
 
             /* PLP */
             0x28 => {
                 self.flags.bits = self.stack_pop();
+                self.flags.remove(CpuFlags::BREAK);
+                self.flags.insert(CpuFlags::BREAK2);
             }
 
             /* ADC */
@@ -918,7 +934,7 @@ impl<'a> CPU<'a> {
             register_y: 0,
             stack_pointer: STACK_SIZE,
             program_counter: 0,
-            flags: CpuFlags::from_bits_truncate(0b00000000),
+            flags: CpuFlags::from_bits_truncate(0b100100),
             bus: bus,
         };
     }
@@ -1637,7 +1653,7 @@ mod test {
         mem.space[0xfffe] = 110;
         mem.space[0xffff] = 0;
         let mut cpu = CPU::new(&mut mem);
-
+        cpu.flags.remove(CpuFlags::INTERRUPT_DISABLE);
         /*
             BRK
             DEX
