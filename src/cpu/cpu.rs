@@ -37,6 +37,8 @@ const ZERO_PAGE: u16 = 0x0;
 const STACK: u16 = 0x0100;
 const STACK_SIZE: u8 = 0xff;
 
+const STACK_RESET: u8 = 0xfd;
+
 mod interrupt {
     #[derive(PartialEq, Eq)]
     pub enum InterruptType {
@@ -552,12 +554,21 @@ impl<'a> CPU<'a> {
             /* JMP Indirect */
             0x6c => {
                 let mem_address = self.mem_read_u16(self.program_counter);
-                let indirect_ref = self.mem_read_u16(mem_address);
-                self.program_counter = indirect_ref;
-                //todo: 6502 bug mode with with page boundary:
+                // let indirect_ref = self.mem_read_u16(mem_address);
+                //6502 bug mode with with page boundary:
                 //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
                 // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended
                 // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000
+                
+                let indirect_ref = if mem_address & 0x00FF == 0x00FF {
+                    let lo = self.mem_read(mem_address);
+                    let hi = self.mem_read(mem_address & 0xFF00);
+                    (hi as u16) << 8 | (lo as u16)
+                } else {
+                    self.mem_read_u16(mem_address)
+                };
+
+                self.program_counter = indirect_ref;
             }
 
             /* JSR */
@@ -575,6 +586,9 @@ impl<'a> CPU<'a> {
             /* RTI */
             0x40 => {
                 self.flags.bits = self.stack_pop();
+                self.flags.remove(CpuFlags::BREAK);
+                self.flags.insert(CpuFlags::BREAK2);
+
                 self.program_counter = self.stack_pop_u16();
             }
 
@@ -932,7 +946,7 @@ impl<'a> CPU<'a> {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            stack_pointer: STACK_SIZE,
+            stack_pointer: STACK_RESET,
             program_counter: 0,
             flags: CpuFlags::from_bits_truncate(0b100100),
             bus: bus,
@@ -979,8 +993,8 @@ mod test {
         let mut cpu = CPU::new(&mut mem);
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("48"), 100);
-        assert_eq!(cpu.stack_pointer, 0xFE);
-        assert_eq!(cpu.mem_read(STACK + 0xFF), 100);
+        assert_eq!(cpu.stack_pointer, STACK_RESET - 1);
+        assert_eq!(cpu.mem_read(STACK + STACK_RESET as u16), 100);
         assert_eq!(cpu.program_counter, 101);
     }
 
@@ -989,7 +1003,7 @@ mod test {
         let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("a9 ff 48 a9 00 68"), 100);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, STACK_RESET);
         assert_eq!(cpu.register_a, 0xff);
         assert_eq!(cpu.program_counter, 106);
     }
@@ -1425,7 +1439,7 @@ mod test {
         let mut mem = MockBus::new();
         let mut cpu = CPU::new(&mut mem);
         cpu.interpret(&CPU::transform("ba"), 100);
-        assert_eq!(cpu.register_x, 0xff);
+        assert_eq!(cpu.register_x, STACK_RESET);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
     }
 
@@ -1464,7 +1478,7 @@ mod test {
         let pc = 100; //cpu.program_counter;
         cpu.interpret(&CPU::transform("20 04 06"), 100);
         assert_eq!(cpu.program_counter, 0x604);
-        assert_eq!(cpu.stack_pointer, 0xff - 0x2);
+        assert_eq!(cpu.stack_pointer, STACK_RESET - 0x2);
         let return_pos = cpu.stack_pop_u16();
         assert_eq!(pc + 3 - 1, return_pos);
     }
@@ -1483,7 +1497,7 @@ mod test {
         */
         cpu.interpret(&CPU::transform("20 69 00 00 00 a2 05 60"), 100);
         assert_eq!(cpu.program_counter, 108);
-        assert_eq!(cpu.stack_pointer, 0xff);
+        assert_eq!(cpu.stack_pointer, STACK_RESET);
         assert_eq!(cpu.register_x, 0x5);
     }
 
@@ -1500,7 +1514,7 @@ mod test {
         cpu.program_counter = 0;
         cpu.interpret(&CPU::transform("40"), 100);
 
-        assert_eq!(cpu.flags.bits, 0b11000001);
+        assert_eq!(cpu.flags.bits, 0b11100001);
         assert_eq!(cpu.program_counter, 0x100);
     }
 

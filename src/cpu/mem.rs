@@ -51,11 +51,13 @@ impl AddressingMode {
                 (addr, cpu.mem_read(addr))  
             }
             AddressingMode::ZeroPage_X => {
-                let addr = (ZERO_PAGE + pos).wrapping_add(cpu.register_x as u16);
-                (addr, cpu.mem_read(addr))
+                let pos = (ZERO_PAGE + pos) as u8;
+                let addr = pos.wrapping_add(cpu.register_x) as u16;
+                (addr, cpu.mem_read(addr as u16))
             }
             AddressingMode::ZeroPage_Y => {
-                let addr = (ZERO_PAGE + pos).wrapping_add(cpu.register_y as u16);
+                let pos = (ZERO_PAGE + pos) as u8;
+                let addr = pos.wrapping_add(cpu.register_y) as u16;
                 (addr, cpu.mem_read(addr))
             }
             AddressingMode::Absolute => {
@@ -73,11 +75,17 @@ impl AddressingMode {
 
             AddressingMode::Indirect_X => {
                 let ptr: u8 = (pos as u8).wrapping_add(cpu.register_x); //todo overflow
-                let deref = cpu.mem_read_u16(ptr as u16);
+                let lo = cpu.mem_read(ptr as u16);
+                let hi = cpu.mem_read(ptr.wrapping_add(1) as u16);
+                // let deref = cpu.mem_read_u16(ptr as u16);
+                let deref = (hi as u16) << 8 | (lo as u16);
                 (deref, cpu.mem_read(deref))
             }
             AddressingMode::Indirect_Y => {
-                let deref = cpu.mem_read_u16(pos as u16).wrapping_add(cpu.register_y as u16);
+                let lo = cpu.mem_read(pos as u16);
+                let hi = cpu.mem_read((pos as u8).wrapping_add(1) as u16);
+                let deref = ((hi as u16) << 8 | (lo as u16)).wrapping_add(cpu.register_y as u16);
+
                 (deref, cpu.mem_read(deref))
             }
             AddressingMode::Accumulator => panic!("should not reach this code"),
@@ -123,13 +131,18 @@ impl AddressingMode {
                 cpu.mem_write(mem_address, data)
             }
             AddressingMode::Indirect_X => {
-                let ptr: u8 = pos.wrapping_add(cpu.register_x); //todo overflow
-                let deref = cpu.mem_read_u16(ptr as u16);
+                let ptr: u8 = (pos as u8).wrapping_add(cpu.register_x); 
+                let lo = cpu.mem_read(ptr as u16);
+                let hi = cpu.mem_read(ptr.wrapping_add(1) as u16);
+                let deref = (hi as u16) << 8 | (lo as u16);
                 cpu.mem_write(deref, data)
             }
             AddressingMode::Indirect_Y => {
-                let deref = cpu.mem_read_u16(pos as u16).wrapping_add(cpu.register_y as u16);
-                cpu.mem_write(deref, data)
+                let lo = cpu.mem_read(pos as u16);
+                let hi = cpu.mem_read((pos as u8).wrapping_add(1) as u16);
+                let deref = ((hi as u16) << 8 | (lo as u16)).wrapping_add(cpu.register_y as u16);
+
+                cpu.mem_write(deref as u16, data)
             }
             AddressingMode::Accumulator => {
                 panic!("shouldn't be here");

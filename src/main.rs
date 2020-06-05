@@ -47,6 +47,6 @@ fn main() {
         file.write_all(&(rustness::cpu::trace(cpu) +"\n").as_bytes()).unwrap();
         // buffer.write_lin &rustness::cpu::trace(cpu)).unwrap();
         file.flush().unwrap();
-        println!("{}", rustness::cpu::trace(cpu));
+        // println!("{}", rustness::cpu::trace(cpu));
     });
 }

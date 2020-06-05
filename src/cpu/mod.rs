@@ -16,7 +16,12 @@ pub fn trace(cpu: &CPU) -> String {
     hex_dump.push(code);
 
     let tmp = match ops.len {
-        1 => String::from(""),
+        1 => {
+            match ops.mode {
+                AddressingMode::Accumulator => format!("A "),
+                _ => String::from(""),
+            }
+        }
         2 => {
             let address: u8 = cpu.mem_read(begin + 1);
             // let value = cpu.mem_read(address));
@@ -29,19 +34,19 @@ pub fn trace(cpu: &CPU) -> String {
                 }
                 AddressingMode::ZeroPage_X => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("${:02x},X @ {:04x} = ${:02x}", address, mem_addr, stored_value)
+                    format!("${:02x},X @ {:02x} = {:02x}", address, mem_addr, stored_value)
                 }
                 AddressingMode::ZeroPage_Y => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("${:02x},Y @ {:04x} = ${:02x}", address, mem_addr, stored_value)
+                    format!("${:02x},Y @ {:02x} = {:02x}", address, mem_addr, stored_value)
                 }
                 AddressingMode::Indirect_X => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("(${:02x},X) @ {:04x} = ${:02x}", address, mem_addr, stored_value)
+                    format!("(${:02x},X) @ {:04x} = {:02x}", address, mem_addr, stored_value)
                 }
                 AddressingMode::Indirect_Y => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("(${:02x}),Y @ {:04x} = ${:02x}", address, mem_addr, stored_value)
+                    format!("(${:02x}),Y @ {:04x} = {:02x}", address, mem_addr, stored_value)
                 }
                 AddressingMode::NoneAddressing => {
                     // assuming local jumps: BNE, BVS, etc.... todo: check ?
@@ -67,7 +72,20 @@ pub fn trace(cpu: &CPU) -> String {
 
             match ops.mode {
                 AddressingMode::NoneAddressing => {
-                    format!("${:04x}", address)
+                    if ops.code == 0x6c { //jmp indirect
+                        let jmp_addr = if address & 0x00FF == 0x00FF {
+                            let lo = cpu.mem_read(address);
+                            let hi = cpu.mem_read(address & 0xFF00);
+                            (hi as u16) << 8 | (lo as u16)
+                        } else {
+                            cpu.mem_read_u16(address)
+                        };
+        
+                        // let jmp_addr = cpu.mem_read_u16(address);
+                        format!("(${:04x}) = {:04x}", address, jmp_addr)
+                    } else {
+                        format!("${:04x}", address)
+                    }
                 }
                 AddressingMode::Absolute => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address);
@@ -129,15 +147,15 @@ mod test {
             result.push(trace(&cpu));
         });
         assert_eq!(
-            "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FF",
+            "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
             result[0]
         );
         assert_eq!(
-            "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FF",
+            "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
             result[1]
         );
         assert_eq!(
-            "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FF",
+            "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
             result[2]
         ); //zero flag
     }
@@ -161,7 +179,7 @@ mod test {
             result.push(trace(&cpu));
         });
         assert_eq!(
-            "0064  11 33     ORA ($33),Y @ 0400 = $AA        A:00 X:00 Y:00 P:24 SP:FF",
+            "0064  11 33     ORA ($33),Y @ 0400 = AA         A:00 X:00 Y:00 P:24 SP:FD",
             result[0]
         );
     }
