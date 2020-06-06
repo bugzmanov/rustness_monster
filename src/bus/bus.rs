@@ -52,7 +52,7 @@ pub struct Bus<'call, T: PPU + 'call> {
     pub nmi_interrupt: Option<u8>,
     pub cycles: usize,
     ppu: RefCell<T>,
-    interrupt_fn: Box<dyn FnMut(&NesPPU) + 'call>,
+    interrupt_fn: Box<dyn FnMut(&T) + 'call>,
 }
 
 fn map_mirrors(pos: u16) -> u16 {
@@ -342,7 +342,7 @@ mod test {
     use crate::rom::ines::test_ines_rom;
 
     fn stub_bus() -> Bus<'static, MockPPU> {
-        let func = |_: &NesPPU| {};
+        let func = |_: &MockPPU| {};
         Bus {
             ram: [0; 0x800],
             rom: test_ines_rom::test_rom(),
