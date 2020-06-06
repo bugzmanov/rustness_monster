@@ -1,6 +1,7 @@
 use crate::cpu::mem::AddressingMode;
 use cpu::CPU;
 use std::collections::HashMap;
+use crate::bus::bus::CpuBus;
 
 pub mod cpu;
 pub mod mem;
@@ -137,7 +138,7 @@ mod test {
         mem.space[101] = 0x01;
         mem.space[102] = 0xca;
         mem.space[103] = 0x88;
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.program_counter = 0x64;
         cpu.register_a = 1;
         cpu.register_x = 2;
@@ -171,7 +172,7 @@ mod test {
         mem.space[0x33] = 00;
         mem.space[0x34] = 04;
         mem.space[0x400] = 0xAA;
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.program_counter = 0x64;
         cpu.register_y = 0;
         let mut result: Vec<String> = vec![];

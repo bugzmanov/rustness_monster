@@ -1,4 +1,5 @@
 use crate::cpu::cpu::CPU;
+use crate::bus::bus::CpuBus;
 
 const ZERO_PAGE: u16 = 0x0;
 
@@ -38,7 +39,7 @@ pub enum AddressingMode {
 
 impl AddressingMode {
 
-    pub fn read_u8_from_pos<'a>(&self, cpu: &CPU<'a>, pos: u16) -> (u16, u8) {
+    pub fn read_u8_from_pos(&self, cpu: &CPU, pos: u16) -> (u16, u8) {
         if let AddressingMode::Accumulator = self {
             return (cpu.register_a as u16, cpu.register_a);
         }
@@ -96,7 +97,7 @@ impl AddressingMode {
 
     }
 
-    pub fn read_u8<'a>(&self, cpu: &CPU<'a>) -> u8 {
+    pub fn read_u8<'a>(&self, cpu: &CPU) -> u8 {
         let pos = match self {
             AddressingMode::Absolute | AddressingMode::Absolute_X | AddressingMode::Absolute_Y =>
                 cpu.mem_read_u16(cpu.program_counter),

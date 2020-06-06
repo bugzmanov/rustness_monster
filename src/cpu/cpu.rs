@@ -1,11 +1,13 @@
 // https://skilldrick.github.io/easy6502/
 use crate::bus::bus::CpuBus;
+use crate::bus::bus::DynamicBusWrapper;
 use crate::cpu::mem::AddressingMode;
 use crate::cpu::opscode;
 use hex;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-
+use std::rc::Rc;
+use std::cell::RefCell;
 bitflags! {
 
 /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -86,7 +88,7 @@ pub struct CPU<'a> {
     pub(super) stack_pointer: u8,
     pub program_counter: u16,
     pub(super) flags: CpuFlags,
-    pub bus: &'a mut dyn CpuBus ,
+    pub bus: Box<CpuBus + 'a>,
 }
 
 impl<'a> CPU<'a> {
@@ -126,7 +128,7 @@ impl<'a> CPU<'a> {
 
     /// note: ignoring decimal mode
     fn sub_from_register_a(&mut self, data: u8) {
-        self.add_to_register_a((-(data as i8) - 1) as u8);
+        self.add_to_register_a(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
     }
 
     fn and_with_register_a(&mut self, data: u8) {
@@ -941,7 +943,7 @@ impl<'a> CPU<'a> {
         }
     }
 
-    pub fn new<'b>(bus: &'b mut dyn CpuBus) -> CPU<'b> {
+    pub fn new<'b>(bus: Box<CpuBus + 'b>) -> CPU<'b> {
         return CPU {
             register_a: 0,
             register_x: 0,
@@ -967,7 +969,7 @@ mod test {
     #[test]
     fn test_0xa9_load_into_register_a() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(&CPU::transform("a9 8d"), 100);
         assert_eq!(cpu.register_a, 0x8d);
         assert_eq!(cpu.program_counter, 102);
@@ -976,7 +978,7 @@ mod test {
     #[test]
     fn test_larger_program() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(
             &CPU::transform("a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02"),
             100,
@@ -990,7 +992,7 @@ mod test {
     #[test]
     fn test_0x48_pha() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("48"), 100);
         assert_eq!(cpu.stack_pointer, STACK_RESET - 1);
@@ -1001,7 +1003,7 @@ mod test {
     #[test]
     fn test_0x68_pla() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(&CPU::transform("a9 ff 48 a9 00 68"), 100);
         assert_eq!(cpu.stack_pointer, STACK_RESET);
         assert_eq!(cpu.register_a, 0xff);
@@ -1011,7 +1013,7 @@ mod test {
     #[test]
     fn test_0x48_pla_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(&CPU::transform("a9 00 48 a9 01 68"), 100);
         assert!(cpu.flags.contains(CpuFlags::ZERO));
     }
@@ -1019,14 +1021,14 @@ mod test {
     #[test]
     fn test_stack_overflowing() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(&CPU::transform("68"), 100);
     }
 
     #[test]
     fn test_0x18_clc() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.insert(CpuFlags::CARRY);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         cpu.interpret(&CPU::transform("18"), 100);
@@ -1037,7 +1039,7 @@ mod test {
     #[test]
     fn test_0x38_sec() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         assert!(!cpu.flags.contains(CpuFlags::CARRY));
         cpu.interpret(&CPU::transform("38"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
@@ -1047,7 +1049,7 @@ mod test {
     #[test]
     fn test_0x85_sta() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 101;
         cpu.interpret(&CPU::transform("85 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 101);
@@ -1057,7 +1059,7 @@ mod test {
     #[test]
     fn test_0x95_sta() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 101;
         cpu.register_x = 0x50;
         cpu.interpret(&CPU::transform("95 10"), 100);
@@ -1068,7 +1070,7 @@ mod test {
     #[test]
     fn test_0x8d_sta() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 100;
         cpu.interpret(&CPU::transform("8d 00 02"), 100);
         assert_eq!(cpu.mem_read(0x0200), 100);
@@ -1078,7 +1080,7 @@ mod test {
     #[test]
     fn test_0x9d_sta_absolute_x() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 101;
         cpu.register_x = 0x50;
         cpu.interpret(&CPU::transform("9d 00 11"), 100);
@@ -1089,7 +1091,7 @@ mod test {
     #[test]
     fn test_0x99_sta_absolute_y() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 101;
         cpu.register_y = 0x66;
         cpu.interpret(&CPU::transform("99 00 11"), 100);
@@ -1100,7 +1102,7 @@ mod test {
     #[test]
     fn test_0x81_sta() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_x = 2;
         cpu.mem_write(0x2, 0x05);
         cpu.mem_write(0x3, 0x07);
@@ -1115,7 +1117,7 @@ mod test {
     #[test]
     fn test_091_sta() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_y = 0x10;
         cpu.mem_write(0x2, 0x05);
         cpu.mem_write(0x3, 0x07);
@@ -1130,7 +1132,7 @@ mod test {
     #[test]
     fn test_0x69_adc() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x10;
         cpu.interpret(&CPU::transform("69 02"), 100);
         assert_eq!(cpu.register_a, 0x12);
@@ -1140,7 +1142,7 @@ mod test {
     #[test]
     fn test_0x69_adc_carry_zero_flag() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x81;
         cpu.interpret(&CPU::transform("69 7f"), 100);
         assert_eq!(cpu.register_a, 0x0);
@@ -1152,7 +1154,7 @@ mod test {
     #[test]
     fn test_0x69_adc_overflow_cary_flag() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x8a;
         cpu.interpret(&CPU::transform("69 8a"), 100);
         assert_eq!(cpu.register_a, 0x14);
@@ -1163,7 +1165,7 @@ mod test {
     #[test]
     fn test_0xe9_sbc() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x10;
         cpu.interpret(&CPU::transform("e9 02"), 100);
         assert_eq!(cpu.register_a, 0x0d);
@@ -1176,7 +1178,7 @@ mod test {
     #[test]
     fn test_0xe9_sbc_negative() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x02;
         cpu.interpret(&CPU::transform("e9 03"), 100);
         assert_eq!(cpu.register_a, 0xfe);
@@ -1187,7 +1189,7 @@ mod test {
     #[test]
     fn test_0xe9_sbc_overflow() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x50;
         cpu.interpret(&CPU::transform("e9 b0"), 100);
         assert_eq!(cpu.register_a, 0x9f);
@@ -1199,7 +1201,7 @@ mod test {
     #[test]
     fn test_0x29_and_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("29 90"), 100); //0b10010000
         assert_eq!(cpu.register_a, 0b10010000);
@@ -1210,7 +1212,7 @@ mod test {
     #[test]
     fn test_0x49_eor_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("49 07"), 100); //0b00000111
         assert_eq!(cpu.register_a, 0b11010101);
@@ -1221,7 +1223,7 @@ mod test {
     #[test]
     fn test_0x09_ora_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("09 07"), 100); //0b00000111
         assert_eq!(cpu.register_a, 0b11010111);
@@ -1232,7 +1234,7 @@ mod test {
     #[test]
     fn test_0x0a_asl_accumulator() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("0a"), 100);
         assert_eq!(cpu.program_counter, 101);
@@ -1243,7 +1245,7 @@ mod test {
     #[test]
     fn test_0x06_asl_memory() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x10, 0b01000001);
         cpu.interpret(&CPU::transform("06 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 0b10000010);
@@ -1253,7 +1255,7 @@ mod test {
     #[test]
     fn test_0x06_asl_memory_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x10, 0b10000000);
         cpu.interpret(&CPU::transform("06 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 0b0);
@@ -1265,7 +1267,7 @@ mod test {
     #[test]
     fn test_0xf6_inc_memory_zero_page_x() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_x = 1;
         cpu.mem_write(0x10, 127);
         cpu.interpret(&CPU::transform("f6 0f"), 100);
@@ -1276,7 +1278,7 @@ mod test {
     #[test]
     fn test_0x46_lsr_memory_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x10, 0b00000001);
         cpu.interpret(&CPU::transform("46 10"), 100);
         assert_eq!(cpu.mem_read(0x10), 0b0);
@@ -1288,7 +1290,7 @@ mod test {
     #[test]
     fn test_0x2e_rol_memory_flags() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x1510, 0b10000001);
         cpu.interpret(&CPU::transform("2e 10 15"), 100);
         assert_eq!(cpu.mem_read(0x1510), 0b00000010);
@@ -1298,7 +1300,7 @@ mod test {
     #[test]
     fn test_0x2e_rol_memory_flags_carry() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b00000001);
         cpu.interpret(&CPU::transform("2e 10 15"), 100);
@@ -1309,7 +1311,7 @@ mod test {
     #[test]
     fn test_0x6e_ror_memory_flags_carry() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b01000010);
         cpu.interpret(&CPU::transform("6e 10 15"), 100);
@@ -1320,7 +1322,7 @@ mod test {
     #[test]
     fn test_0x6e_zero_flag() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.mem_write(0x1510, 0b00000001);
         cpu.interpret(&CPU::transform("6e 10 15"), 100);
@@ -1330,7 +1332,7 @@ mod test {
     #[test]
     fn test_0x6a_ror_accumulator_zero_falg() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 1;
         cpu.interpret(&CPU::transform("6a"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
@@ -1341,7 +1343,7 @@ mod test {
     #[test]
     fn test_0xbe_ldx_absolute_y() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x1166, 55);
         cpu.register_y = 0x66;
         cpu.interpret(&CPU::transform("be 00 11"), 100);
@@ -1351,7 +1353,7 @@ mod test {
     #[test]
     fn test_0xb4_ldy_zero_page_x() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x66, 55);
         cpu.register_x = 0x06;
         cpu.interpret(&CPU::transform("b4 60"), 100);
@@ -1361,7 +1363,7 @@ mod test {
     #[test]
     fn test_0xc8_iny() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_y = 127;
         cpu.interpret(&CPU::transform("c8"), 100);
         assert_eq!(cpu.register_y, 128);
@@ -1371,7 +1373,7 @@ mod test {
     #[test]
     fn test_0xe8_inx() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_x = 0xff;
         cpu.interpret(&CPU::transform("e8"), 100);
         assert_eq!(cpu.register_x, 0);
@@ -1381,7 +1383,7 @@ mod test {
     #[test]
     fn test_0x6c_jmp_indirect() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.mem_write(0x0120, 0xfc);
         cpu.mem_write(0x0121, 0xba);
         cpu.interpret(&CPU::transform("6c 20 01"), 100);
@@ -1391,7 +1393,7 @@ mod test {
     #[test]
     fn test_0x4c_jmp_absolute() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(&CPU::transform("4c 34 12"), 100);
         assert_eq!(cpu.program_counter, 0x1234);
     }
@@ -1399,7 +1401,7 @@ mod test {
     #[test]
     fn test_0xea_nop() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.insert(CpuFlags::CARRY);
         cpu.flags.insert(CpuFlags::NEGATIV);
         let flags = cpu.flags.clone();
@@ -1419,7 +1421,7 @@ mod test {
     #[test]
     fn test_0xaa_tax() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 66;
         cpu.interpret(&CPU::transform("aa"), 100);
         assert_eq!(cpu.register_x, 66);
@@ -1428,7 +1430,7 @@ mod test {
     #[test]
     fn test_0xa8_tay() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 66;
         cpu.interpret(&CPU::transform("a8"), 100);
         assert_eq!(cpu.register_y, 66);
@@ -1437,7 +1439,7 @@ mod test {
     #[test]
     fn test_0xba_tsx() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.interpret(&CPU::transform("ba"), 100);
         assert_eq!(cpu.register_x, STACK_RESET);
         assert!(cpu.flags.contains(CpuFlags::NEGATIV));
@@ -1446,7 +1448,7 @@ mod test {
     #[test]
     fn test_0x8a_txa() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_x = 66;
         cpu.interpret(&CPU::transform("8a"), 100);
         assert_eq!(cpu.register_a, 66);
@@ -1455,7 +1457,7 @@ mod test {
     #[test]
     fn test_0x9a_txs() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_x = 0;
         cpu.interpret(&CPU::transform("9a"), 100);
         assert_eq!(cpu.stack_pointer, 0);
@@ -1465,7 +1467,7 @@ mod test {
     #[test]
     fn test_0x98_tya() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_y = 66;
         cpu.interpret(&CPU::transform("98"), 100);
         assert_eq!(cpu.register_a, 66);
@@ -1474,7 +1476,7 @@ mod test {
     #[test]
     fn test_0x20_jsr() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         let pc = 100; //cpu.program_counter;
         cpu.interpret(&CPU::transform("20 04 06"), 100);
         assert_eq!(cpu.program_counter, 0x604);
@@ -1486,7 +1488,7 @@ mod test {
     #[test]
     fn test_0x60_rts() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         /*
             JSR init
             BRK
@@ -1504,7 +1506,7 @@ mod test {
     #[test]
     fn test_0x40_rti() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.bits = 0b11000001;
         cpu.program_counter = 0x100;
         cpu.stack_push_u16(cpu.program_counter);
@@ -1521,7 +1523,7 @@ mod test {
     #[test]
     fn test_0xc9_cmp_immidiate() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0x6;
         cpu.interpret(&CPU::transform("c9 05"), 100);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
@@ -1550,7 +1552,7 @@ mod test {
     #[test]
     fn test_0xd0_bne() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         // jump
         cpu.flags.remove(CpuFlags::ZERO);
         cpu.interpret(&CPU::transform("d0 04"), 100);
@@ -1565,7 +1567,7 @@ mod test {
     #[test]
     fn test_0xd0_bne_snippet() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         /*
             LDX #$08
         decrement:
@@ -1582,7 +1584,7 @@ mod test {
     #[test]
     fn test_0x24_bit() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b00000010;
         cpu.mem_write(0x10, 0b10111101);
         cpu.interpret(&CPU::transform("24 10"), 100);
@@ -1595,7 +1597,7 @@ mod test {
     #[test]
     fn test_unofficial_0xc7_dcp() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 2;
         cpu.mem_write(0x10, 3);
 
@@ -1610,7 +1612,7 @@ mod test {
     #[test]
     fn test_unofficial_0x2f_rla() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b10000011;
         cpu.mem_write(0x1510, 0b10000001);
         cpu.interpret(&CPU::transform("2f 10 15"), 100);
@@ -1622,7 +1624,7 @@ mod test {
     #[test]
     fn test_unofficial_0xcb_axs() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b10000011;
         cpu.register_x = 0b10000001;
 
@@ -1637,7 +1639,7 @@ mod test {
     #[test]
     fn test_unofficial_0x6b_arr() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b11010000;
 
         cpu.interpret(&CPU::transform("6b 90"), 100); //0b10010000
@@ -1652,7 +1654,7 @@ mod test {
     #[test]
     fn test_unoffical_0x0b_anc() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b11010010;
         cpu.interpret(&CPU::transform("0b 90"), 100); //0b10010000
         assert_eq!(cpu.register_a, 0b10010000);
@@ -1666,7 +1668,7 @@ mod test {
         let mut mem = MockBus::new();
         mem.space[0xfffe] = 110;
         mem.space[0xffff] = 0;
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.flags.remove(CpuFlags::INTERRUPT_DISABLE);
         /*
             BRK
@@ -1688,11 +1690,14 @@ mod test {
 
     #[test]
     fn test_0x00_nmi() {
-        let mut mem = MockBus::new();
-        mem.nmi_interrupt = Some(1u8);
-        mem.space[0xfffA] = 104;
-        mem.space[0xfffB] = 0;
-        let mut cpu = CPU::new(&mut mem);
+        let bus =  Rc::from(RefCell::from(MockBus::new()));
+        
+        bus.borrow_mut().nmi_interrupt = Some(1u8);
+        bus.borrow_mut().space[0xfffA] = 104;
+        bus.borrow_mut().space[0xfffB] = 0;
+        let bus_wrap = DynamicBusWrapper::new(bus.clone());
+
+        let mut cpu = CPU::new(Box::from(bus_wrap));
 
         /*
             DEX
@@ -1705,13 +1710,13 @@ mod test {
 
         cpu.interpret(&CPU::transform("ca 4c 6A 00 a2 05 40"), 100); //0b10010000
         assert_eq!(cpu.register_x, 4);
-        assert_eq!(mem.cycles, 21);
+        assert_eq!(bus.borrow().cycles, 21);
     }
 
     #[test]
     fn test_ololo() {
         let mut mem = MockBus::new();
-        let mut cpu = CPU::new(&mut mem);
+        let mut cpu = CPU::new(Box::from(mem));
         cpu.register_a = 0b00000010;
         cpu.mem_write(0x10, 0b10111101);
         cpu.interpret(&CPU::transform("24 10"), 100);

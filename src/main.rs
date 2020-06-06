@@ -31,7 +31,7 @@ fn main() {
 
     let memory = Rc::from(RefCell::from(bus));
     let mut mem_wraper = DynamicBusWrapper::new(memory.clone());
-    let mut cpu = CPU::new(&mut mem_wraper);
+    let mut cpu = CPU::new(Box::from(mem_wraper));
     cpu.program_counter = 0xc000; //0x8000 as u16 + pc as u16;
 
     let mut file = OpenOptions::new()
@@ -47,6 +47,6 @@ fn main() {
         file.write_all(&(rustness::cpu::trace(cpu) +"\n").as_bytes()).unwrap();
         // buffer.write_lin &rustness::cpu::trace(cpu)).unwrap();
         file.flush().unwrap();
-        // println!("{}", rustness::cpu::trace(cpu));
+        println!("{}", rustness::cpu::trace(cpu));
     });
 }

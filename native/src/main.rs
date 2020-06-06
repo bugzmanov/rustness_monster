@@ -18,7 +18,6 @@ use std::io::Read;
 use std::cell::RefCell;
 use std::{rc::Rc};
 
-
 fn main() {
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     let mut file = File::open("test_rom/pacman.nes").unwrap();
@@ -99,7 +98,7 @@ fn main() {
 
     // let memory = Rc::from(RefCell::from(bus));
     // let mut mem_wraper = DynamicBusWrapper::new(memory);
-    let mut cpu = CPU::new(&mut bus);
+    let mut cpu = CPU::new(Box::from(bus));
     cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
     // cpu.program_counter = 0xC000; //0x8000 as u16 + pc as u16;
 
