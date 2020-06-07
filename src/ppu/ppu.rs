@@ -90,6 +90,37 @@ pub trait Renderer {
     fn render(ppu: &NesPPU) -> Frame;
 }
 
+// https://wiki.nesdev.com/w/index.php/PPU_attribute_tables
+fn sprite_palette(ppu: &NesPPU, pallete_idx: u8) -> [u8;4] {
+    let start = 0x11 + (pallete_idx * 4) as usize;
+    [0, ppu.palette_table[start], ppu.palette_table[start+1], ppu.palette_table[start+2]]
+
+}
+
+fn bg_pallette(ppu: &NesPPU, tile_x: usize, tile_y : usize) -> [u8;4] {
+    // 0,0 -> 0 ... 0,3 -> 0  3,3 -> 0     0,4 .. 0,7 -> 1   
+
+    let attr_table_idx = tile_y / 4 * 8 +  tile_x / 4;
+    let attr_byte = ppu.vram[0x3c0 + attr_table_idx];
+
+    // println!("tile:{},{} -  attr_table_idx {}",tile_x, tile_y, attr_table_idx);
+
+    let pallet_idx = match (tile_x %4 / 2, tile_y % 4 / 2) {
+        (0,0) => attr_byte & 0b11,
+        (1,0) => (attr_byte >> 2) & 0b11,
+        (0,1) => (attr_byte >> 4) & 0b11,
+        (1,1) => (attr_byte >> 6) & 0b11,
+        (_,_) => panic!("should not happen"),
+    };
+
+    // let pallete_start = 0x3f01 + pallet_idx*3;
+    let pallete_start: usize = 1 + (pallet_idx as usize)*4;
+    [ppu.palette_table[0], ppu.palette_table[pallete_start], ppu.palette_table[pallete_start+1], ppu.palette_table[pallete_start+2]]
+
+    // let attr_table_idx = tile_y / 4 * 8 + tile_x / 4
+}
+
+
 pub fn render(ppu: &NesPPU) -> Frame {
     let mut frame = Frame::new();
     let bank = ppu.ctrl.bknd_pattern_addr();
@@ -107,7 +138,8 @@ pub fn render(ppu: &NesPPU) -> Frame {
 
         // let pallet
 
-        let palette = &ppu.palette_table[16..=31];
+        // let palette = &ppu.palette_table[16..=31];
+        let palette = bg_pallette(ppu, tile_x, tile_y);
         // let palette = &ppu.palette_table[29..=31];
 
         for y in 0..=7 {
@@ -115,20 +147,20 @@ pub fn render(ppu: &NesPPU) -> Frame {
             let mut lower = tile[y + 8];
 
             for x in (0..=7).rev() {
-                let value = (1 & upper) << 1 | (1 & lower);
+                let value = (1 & lower) << 1 | (1 & upper);
                 upper = upper >> 1;
                 lower = lower >> 1;
                 let rgb = match value {
-                    0 => pallete::YUV[0x01],
+                    // 0 => pallete::YUV[0x01],
                     // 1 => pallete::YUV[0x23],
                     // 2 => pallete::YUV[0x27],
                     // 3 => pallete::YUV[0x2b],
                     // _ => panic!("can't be"),
 
-                    // 0 => pallete::YUV[ppu.palette_table[0] as usize],
-                    1 => pallete::YUV[palette[0] as usize],
-                    2 => pallete::YUV[palette[1] as usize],
-                    3 => pallete::YUV[palette[2] as usize],
+                    0 => pallete::YUV[ppu.palette_table[0] as usize],
+                    1 => pallete::YUV[palette[1] as usize],
+                    2 => pallete::YUV[palette[2] as usize],
+                    3 => pallete::YUV[palette[3] as usize],
                     _ => panic!("can't be"),
                 };
                 // frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
@@ -150,7 +182,10 @@ pub fn render(ppu: &NesPPU) -> Frame {
 
     for i in (0..ppu.oam_data.len()).step_by(4).rev() {
         // if(ppu.oam_data[i] != 0) {
+            let flip_vertical =  if (ppu.oam_data[i+2]>>7 & 1 == 1) { true } else { false }; 
             let flip_horizontal = if (ppu.oam_data[i+2]>>6 & 1 == 1) { true } else { false }; 
+            let pallette_idx = ppu.oam_data[i+2] & 0b11;
+            let sprite_palette = sprite_palette(ppu, pallette_idx);
             let bank: u16 = ppu.ctrl.sprt_pattern_addr();
             let tile = ppu.oam_data[i+1] as u16;
             let tile_x = ppu.oam_data[i+3] as usize;
@@ -168,16 +203,16 @@ pub fn render(ppu: &NesPPU) -> Frame {
                 // frame.set_pixel(tile_x , tile_y + y, (255,0,0));
                 // frame.set_pixel(tile_x + 8, tile_y + y, (255,0,0));
                 'ololo: for x in (0..=7).rev() {
-                    let value = (1 & upper) << 1 | (1 & lower);
+                    let value = (1 & lower) << 1 | (1 & upper);
                     upper = upper >> 1;
                     lower = lower >> 1;
                     let rgb = match value {
                         // 0 => pallete::YUV[ppu.palette_table[0] as usize],
-                        // 0 => continue 'ololo,//pallete::YUV[0x01],
-                        0 => pallete::YUV[0x08],
-                        1 => pallete::YUV[0x23],
-                        2 => pallete::YUV[0x27],
-                        3 => pallete::YUV[0x2b],
+                        0 => continue 'ololo,//pallete::YUV[0x01],
+                        // 0 => pallete::YUV[ppu.palette_table[0] as usize],
+                        1 => pallete::YUV[sprite_palette[1] as usize],
+                        2 => pallete::YUV[sprite_palette[2] as usize],
+                        3 => pallete::YUV[sprite_palette[3] as usize],
                         _ => panic!("can't be"),
     
                         // 0 => pallete::YUV[ppu.palette_table[0] as usize],
@@ -188,11 +223,18 @@ pub fn render(ppu: &NesPPU) -> Frame {
                     };
                     // frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
                     // println!("x={},y={}", tile_x*8 +x, tile_y*8 +y);
-                    if flip_horizontal {
-                        frame.set_pixel(tile_x + 8-x, tile_y + y, rgb);
-                    } else {
-                        frame.set_pixel(tile_x + x, tile_y + y, rgb);
+                    match (flip_horizontal, flip_vertical) {
+                        (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
+                        (true, false) => frame.set_pixel(tile_x + 7-x, tile_y + y, rgb),
+                        (false, true) => frame.set_pixel(tile_x + x, tile_y + 7-y, rgb),
+                        (true, true) => frame.set_pixel(tile_x + 7-x, tile_y + 7-y, rgb),
+
                     }
+                    // if flip_horizontal {
+                    //     frame.set_pixel(tile_x + 8-x, tile_y + y, rgb);
+                    // } else {
+                    //     frame.set_pixel(tile_x + x, tile_y + y, rgb);
+                    // }
                     // frame.set_pixel(tile_x*7 + x, tile_y*7 + y, (0xff, 0, 0))
                 }
             }
@@ -325,7 +367,7 @@ impl PPU for NesPPU {
             /* todo: implement working with palette */
             {
                 self.palette_table[(addr - 0x3f00) as usize] = value;
-                // println!("write palette {:x} {:x}", addr, value);
+                println!("write palette {:x}({}) {:x}", addr, addr - 0x3f00, value);
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
