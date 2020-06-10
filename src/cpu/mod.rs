@@ -1,7 +1,7 @@
+use crate::bus::bus::CpuBus;
 use crate::cpu::mem::AddressingMode;
 use cpu::CPU;
 use std::collections::HashMap;
-use crate::bus::bus::CpuBus;
 
 pub mod cpu;
 pub mod mem;
@@ -17,12 +17,10 @@ pub fn trace(cpu: &mut CPU) -> String {
     hex_dump.push(code);
 
     let tmp = match ops.len {
-        1 => {
-            match ops.mode {
-                AddressingMode::Accumulator => format!("A "),
-                _ => String::from(""),
-            }
-        }
+        1 => match ops.mode {
+            AddressingMode::Accumulator => format!("A "),
+            _ => String::from(""),
+        },
         2 => {
             let address: u8 = cpu.mem_read(begin + 1);
             // let value = cpu.mem_read(address));
@@ -35,19 +33,32 @@ pub fn trace(cpu: &mut CPU) -> String {
                 }
                 AddressingMode::ZeroPage_X => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("${:02x},X @ {:02x} = {:02x}", address, mem_addr, stored_value)
+                    format!(
+                        "${:02x},X @ {:02x} = {:02x}",
+                        address, mem_addr, stored_value
+                    )
                 }
                 AddressingMode::ZeroPage_Y => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("${:02x},Y @ {:02x} = {:02x}", address, mem_addr, stored_value)
+                    format!(
+                        "${:02x},Y @ {:02x} = {:02x}",
+                        address, mem_addr, stored_value
+                    )
                 }
                 AddressingMode::Indirect_X => {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("(${:02x},X) @ {:04x} = {:02x}", address, mem_addr, stored_value)
+                    format!(
+                        "(${:02x},X) @ {:04x} = {:02x}",
+                        address, mem_addr, stored_value
+                    )
                 }
-                AddressingMode::Indirect_Y => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("(${:02x}),Y @ {:04x} = {:02x}", address, mem_addr, stored_value)
+                AddressingMode::Indirect_Y | AddressingMode::Indirect_Y_PageCross => {
+                    let (mem_addr, stored_value) =
+                        AddressingMode::Indirect_Y.read_u8_from_pos(cpu, address as u16);
+                    format!(
+                        "(${:02x}),Y @ {:04x} = {:02x}",
+                        address, mem_addr, stored_value
+                    )
                 }
                 AddressingMode::NoneAddressing => {
                     // assuming local jumps: BNE, BVS, etc.... todo: check ?
@@ -70,10 +81,10 @@ pub fn trace(cpu: &mut CPU) -> String {
 
             let address = cpu.mem_read_u16(begin + 1);
 
-
             match ops.mode {
                 AddressingMode::NoneAddressing => {
-                    if ops.code == 0x6c { //jmp indirect
+                    if ops.code == 0x6c {
+                        //jmp indirect
                         let jmp_addr = if address & 0x00FF == 0x00FF {
                             let lo = cpu.mem_read(address);
                             let hi = cpu.mem_read(address & 0xFF00);
@@ -81,7 +92,7 @@ pub fn trace(cpu: &mut CPU) -> String {
                         } else {
                             cpu.mem_read_u16(address)
                         };
-        
+
                         // let jmp_addr = cpu.mem_read_u16(address);
                         format!("(${:04x}) = {:04x}", address, jmp_addr)
                     } else {
@@ -92,18 +103,28 @@ pub fn trace(cpu: &mut CPU) -> String {
                     let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address);
 
                     format!("${:04x} = {:02x}", mem_addr, stored_value)
+                }
+                AddressingMode::Absolute_X | AddressingMode::Absolute_X_PageCross => {
+                    let (mem_addr, stored_value) =
+                        AddressingMode::Absolute_X.read_u8_from_pos(cpu, address);
 
+                    format!(
+                        "${:04x},X @ {:04x} = {:02x}",
+                        address, mem_addr, stored_value
+                    )
                 }
-                AddressingMode::Absolute_X => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address);
-
-                    format!("${:04x},X @ {:04x} = {:02x}", address, mem_addr, stored_value)
+                AddressingMode::Absolute_Y | AddressingMode::Absolute_Y_PageCross => {
+                    let (mem_addr, stored_value) =
+                        AddressingMode::Absolute_Y.read_u8_from_pos(cpu, address);
+                    format!(
+                        "${:04x},Y @ {:04x} = {:02x}",
+                        address, mem_addr, stored_value
+                    )
                 }
-                AddressingMode::Absolute_Y => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address);
-                    format!("${:04x},Y @ {:04x} = {:02x}", address, mem_addr, stored_value)
-                }
-                _ => panic!("unexpected addressing mode {:?} has ops-len 3. code {:02x}", ops.mode, ops.code)
+                _ => panic!(
+                    "unexpected addressing mode {:?} has ops-len 3. code {:02x}",
+                    ops.mode, ops.code
+                ),
             }
         }
         _ => String::from(""),
@@ -118,14 +139,22 @@ pub fn trace(cpu: &mut CPU) -> String {
         .trim()
         .to_string();
 
-    let bus_trace = cpu.bus.trace();    
+    let bus_trace = cpu.bus.trace();
     format!(
         // "{:47} A:{:02x} X:{:02x} Y:{:02x} SP:{:02x} FL:{:08b}",
         "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x} PPU:{:3},{:3} CYC:{}",
         // "{:30}(a:{:x}, x:{:x}, y:{:x}, sp:{:x}, fl:{:x})",
-        asm_str, cpu.register_a, cpu.register_x, cpu.register_y, cpu.flags, cpu.stack_pointer, 
-        bus_trace.ppu_cycles, bus_trace.ppu_scanline, bus_trace.cpu_cycles
-    ).to_ascii_uppercase()
+        asm_str,
+        cpu.register_a,
+        cpu.register_x,
+        cpu.register_y,
+        cpu.flags,
+        cpu.stack_pointer,
+        bus_trace.ppu_cycles,
+        bus_trace.ppu_scanline,
+        bus_trace.cpu_cycles
+    )
+    .to_ascii_uppercase()
 }
 
 #[cfg(test)]

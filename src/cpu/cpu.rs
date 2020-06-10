@@ -5,10 +5,10 @@ use crate::bus::bus::DynamicBusWrapper;
 use crate::cpu::mem::AddressingMode;
 use crate::cpu::opscode;
 use hex;
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
-use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 bitflags! {
 
 /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -80,9 +80,7 @@ mod interrupt {
     };
 }
 
-
 pub struct CPU<'a> {
-    
     pub(super) register_a: u8,
     pub(super) register_x: u8,
     pub(super) register_y: u8,
@@ -223,7 +221,7 @@ impl<'a> CPU<'a> {
         let lo = self.stack_pop() as u16;
         let hi = self.stack_pop() as u16;
 
-        hi  << 8 | lo
+        hi << 8 | lo
         // self.stack_pointer = self.stack_pointer.wrapping_add(2);
         // self.mem_read_u16((STACK as u16) + self.stack_pointer as u16)
     }
@@ -264,12 +262,10 @@ impl<'a> CPU<'a> {
                 .wrapping_add(1)
                 .wrapping_add(jump as u16);
 
-                // todo: figure this out
-            if self.program_counter & 0xFF00 != jump_addr & 0xFF00 {
-                // self.bus.tick(2);
-            // } else {
-                self.bus.tick(1);
-            }
+            // todo: figure this out
+            // if self.program_counter & 0xFF00 != jump_addr & 0xFF00 {
+            //     self.bus.tick(1);
+            // }
             self.program_counter = jump_addr;
         }
     }
@@ -571,7 +567,7 @@ impl<'a> CPU<'a> {
                 //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
                 // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended
                 // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000
-                
+
                 let indirect_ref = if mem_address & 0x00FF == 0x00FF {
                     let lo = self.mem_read(mem_address);
                     let hi = self.mem_read(mem_address & 0xFF00);
@@ -1197,7 +1193,6 @@ mod test {
         assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
     }
 
-
     #[test]
     fn test_0xe9_sbc_negative() {
         let mem = MockBus::new();
@@ -1713,8 +1708,8 @@ mod test {
 
     #[test]
     fn test_0x00_nmi() {
-        let bus =  Rc::from(RefCell::from(MockBus::new()));
-        
+        let bus = Rc::from(RefCell::from(MockBus::new()));
+
         bus.borrow_mut().nmi_interrupt = Some(1u8);
         bus.borrow_mut().space[0xfffA] = 104;
         bus.borrow_mut().space[0xfffB] = 0;

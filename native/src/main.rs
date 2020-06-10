@@ -14,9 +14,8 @@ use std::time::SystemTime;
 use std::fs::File;
 use std::io::Read;
 
-
 use std::cell::RefCell;
-use std::{rc::Rc};
+use std::rc::Rc;
 
 fn main() {
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
@@ -51,7 +50,6 @@ fn main() {
 
     let trace_rc = trace.clone();
     let func = move |z: &NesPPU| {
-
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -59,7 +57,10 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => std::process::exit(0),
-                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                Event::KeyDown {
+                    keycode: Some(Keycode::D),
+                    ..
+                } => {
                     let upd = !*trace_rc.borrow();
                     trace_rc.replace(upd);
                 }
@@ -100,7 +101,7 @@ fn main() {
     // let mut mem_wraper = DynamicBusWrapper::new(memory);
     let mut cpu = CPU::new(Box::from(bus));
     cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
-    // cpu.program_counter = 0xC000; //0x8000 as u16 + pc as u16;
+                                 // cpu.program_counter = 0xC000; //0x8000 as u16 + pc as u16;
 
     let trace_rc2 = trace.clone();
     cpu.interpret_fn(0xffff, |cpu| {
@@ -109,5 +110,4 @@ fn main() {
             println!("{}", rustness::cpu::trace(cpu));
         }
     });
-
 }

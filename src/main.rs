@@ -8,10 +8,10 @@ use std::io::Read;
 
 use rustness::bus::bus::DynamicBusWrapper;
 use std::cell::RefCell;
-use std::{rc::Rc, time::Duration};
-use std::io::prelude::*;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::{rc::Rc, time::Duration};
 fn main() {
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     let mut file = File::open("test_rom/nestest.nes").unwrap();
@@ -35,16 +35,17 @@ fn main() {
     cpu.program_counter = 0xc000; //0x8000 as u16 + pc as u16;
 
     let mut file = OpenOptions::new()
-    .write(true)
-    .create(true)
-    // .append(true)
-    .open("nestest.log")
-    .unwrap();
+        .write(true)
+        .create(true)
+        // .append(true)
+        .open("nestest.log")
+        .unwrap();
 
     cpu.interpret_fn(0xffff, |cpu| {
         // ::std::thread::sleep(Duration::new(0, 50000));
 
-        file.write_all(&(rustness::cpu::trace(cpu) +"\n").as_bytes()).unwrap();
+        file.write_all(&(rustness::cpu::trace(cpu) + "\n").as_bytes())
+            .unwrap();
         // buffer.write_lin &rustness::cpu::trace(cpu)).unwrap();
         file.flush().unwrap();
         println!("{}", rustness::cpu::trace(cpu));

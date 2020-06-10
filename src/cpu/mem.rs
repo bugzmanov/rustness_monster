@@ -1,5 +1,5 @@
-use crate::cpu::cpu::CPU;
 use crate::bus::bus::CpuBus;
+use crate::cpu::cpu::CPU;
 
 const ZERO_PAGE: u16 = 0x0;
 
@@ -31,61 +31,80 @@ pub enum AddressingMode {
     ZeroPage_Y,
     Absolute,
     Absolute_X,
+    Absolute_X_PageCross,
     Absolute_Y,
+    Absolute_Y_PageCross,
     Indirect_X,
     Indirect_Y,
+    Indirect_Y_PageCross,
     NoneAddressing,
 }
 
 impl AddressingMode {
-
-    pub fn read_u8_from_pos(&self, cpu: &mut CPU, pos: u16) -> (u16, u8) {
+    pub fn read_u8_from_pos(&self, cpu: &mut CPU, base: u16) -> (u16, u8) {
         if let AddressingMode::Accumulator = self {
             return (cpu.register_a as u16, cpu.register_a);
         }
 
         // let pos: u8 = cpu.mem_read(cpu.program_counter);
         match self {
-            AddressingMode::Immediate => (pos, pos as u8),
+            AddressingMode::Immediate => (base, base as u8),
             AddressingMode::ZeroPage => {
-                let addr = ZERO_PAGE + pos;
-                (addr, cpu.mem_read(addr))  
+                let addr = ZERO_PAGE + base;
+                (addr, cpu.mem_read(addr))
             }
             AddressingMode::ZeroPage_X => {
-                let pos = (ZERO_PAGE + pos) as u8;
+                let pos = (ZERO_PAGE + base) as u8;
                 let addr = pos.wrapping_add(cpu.register_x) as u16;
                 (addr, cpu.mem_read(addr as u16))
             }
             AddressingMode::ZeroPage_Y => {
-                let pos = (ZERO_PAGE + pos) as u8;
+                let pos = (ZERO_PAGE + base) as u8;
                 let addr = pos.wrapping_add(cpu.register_y) as u16;
                 (addr, cpu.mem_read(addr))
             }
             AddressingMode::Absolute => {
-                let addr = pos;
+                let addr = base;
                 (addr, cpu.mem_read(addr))
             }
-            AddressingMode::Absolute_X => {
-                let addr = pos.wrapping_add(cpu.register_x as u16);
+            AddressingMode::Absolute_X | AddressingMode::Absolute_X_PageCross => {
+                let addr = base.wrapping_add(cpu.register_x as u16);
+
+                if page_cross_mode(self) && page_cross(base, addr) {
+                    cpu.bus.tick(1);
+                }
+
                 (addr, cpu.mem_read(addr))
             }
-            AddressingMode::Absolute_Y => {
-                let addr = pos.wrapping_add(cpu.register_y as u16);
+            AddressingMode::Absolute_Y | AddressingMode::Absolute_Y_PageCross => {
+                let addr = base.wrapping_add(cpu.register_y as u16);
+
+                if page_cross_mode(self) && page_cross(base, addr) {
+                    cpu.bus.tick(1);
+                }
+
                 (addr, cpu.mem_read(addr))
             }
 
             AddressingMode::Indirect_X => {
-                let ptr: u8 = (pos as u8).wrapping_add(cpu.register_x); //todo overflow
+                let ptr: u8 = (base as u8).wrapping_add(cpu.register_x);
                 let lo = cpu.mem_read(ptr as u16);
                 let hi = cpu.mem_read(ptr.wrapping_add(1) as u16);
                 // let deref = cpu.mem_read_u16(ptr as u16);
                 let deref = (hi as u16) << 8 | (lo as u16);
                 (deref, cpu.mem_read(deref))
             }
-            AddressingMode::Indirect_Y => {
-                let lo = cpu.mem_read(pos as u16);
-                let hi = cpu.mem_read((pos as u8).wrapping_add(1) as u16);
-                let deref = ((hi as u16) << 8 | (lo as u16)).wrapping_add(cpu.register_y as u16);
+            AddressingMode::Indirect_Y | AddressingMode::Indirect_Y_PageCross => {
+                let lo = cpu.mem_read(base as u16);
+                let hi = cpu.mem_read((base as u8).wrapping_add(1) as u16);
+                // let deref = ((hi as u16) << 8 | (lo as u16)).wrapping_add(cpu.register_y as u16);
+
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref = deref_base.wrapping_add(cpu.register_y as u16);
+
+                if page_cross_mode(self) && page_cross(deref_base, deref) {
+                    cpu.bus.tick(1);
+                }
 
                 (deref, cpu.mem_read(deref))
             }
@@ -94,16 +113,18 @@ impl AddressingMode {
                 panic!("AddressingMode::NoneAddressing shouldn't be used to read data")
             }
         }
-
     }
 
     pub fn read_u8<'a>(&self, cpu: &mut CPU) -> u8 {
-        let pos = match self {
-            AddressingMode::Absolute | AddressingMode::Absolute_X | AddressingMode::Absolute_Y =>
-                cpu.mem_read_u16(cpu.program_counter),
-            _ => cpu.mem_read(cpu.program_counter) as u16
+        let base = match self {
+            AddressingMode::Absolute
+            | AddressingMode::Absolute_X
+            | AddressingMode::Absolute_Y
+            | AddressingMode::Absolute_Y_PageCross
+            | AddressingMode::Absolute_X_PageCross => cpu.mem_read_u16(cpu.program_counter),
+            _ => cpu.mem_read(cpu.program_counter) as u16,
         };
-        self.read_u8_from_pos(cpu, pos ).1
+        self.read_u8_from_pos(cpu, base).1
     }
 
     pub fn write_u8(&self, cpu: &mut CPU, data: u8) {
@@ -117,40 +138,63 @@ impl AddressingMode {
         match self {
             AddressingMode::Immediate => panic!("Immediate adressing mode is only for reading"),
             AddressingMode::ZeroPage => cpu.mem_write(pos as u16, data),
-            AddressingMode::ZeroPage_X => cpu.mem_write((pos.wrapping_add(cpu.register_x)) as u16, data),
-            AddressingMode::ZeroPage_Y => cpu.mem_write((pos.wrapping_add(cpu.register_y)) as u16, data),
+            AddressingMode::ZeroPage_X => {
+                cpu.mem_write((pos.wrapping_add(cpu.register_x)) as u16, data)
+            }
+            AddressingMode::ZeroPage_Y => {
+                cpu.mem_write((pos.wrapping_add(cpu.register_y)) as u16, data)
+            }
             AddressingMode::Absolute => {
                 let mem_address = cpu.mem_read_u16(cpu.program_counter);
                 cpu.mem_write(mem_address, data)
             }
-            AddressingMode::Absolute_X => {
-                let mem_address = cpu.mem_read_u16(cpu.program_counter).wrapping_add(cpu.register_x as u16);
+            AddressingMode::Absolute_X | AddressingMode::Absolute_X_PageCross => {
+                let mem_address = cpu
+                    .mem_read_u16(cpu.program_counter)
+                    .wrapping_add(cpu.register_x as u16);
                 cpu.mem_write(mem_address, data)
             }
-            AddressingMode::Absolute_Y => {
-                let mem_address = cpu.mem_read_u16(cpu.program_counter).wrapping_add(cpu.register_y as u16);
+            AddressingMode::Absolute_Y | AddressingMode::Absolute_Y_PageCross => {
+                let mem_address = cpu
+                    .mem_read_u16(cpu.program_counter)
+                    .wrapping_add(cpu.register_y as u16);
                 cpu.mem_write(mem_address, data)
             }
             AddressingMode::Indirect_X => {
-                let ptr: u8 = (pos as u8).wrapping_add(cpu.register_x); 
+                let ptr: u8 = (pos as u8).wrapping_add(cpu.register_x);
                 let lo = cpu.mem_read(ptr as u16);
                 let hi = cpu.mem_read(ptr.wrapping_add(1) as u16);
                 let deref = (hi as u16) << 8 | (lo as u16);
                 cpu.mem_write(deref, data)
             }
-            AddressingMode::Indirect_Y => {
+            AddressingMode::Indirect_Y | AddressingMode::Indirect_Y_PageCross => {
                 let lo = cpu.mem_read(pos as u16);
                 let hi = cpu.mem_read((pos as u8).wrapping_add(1) as u16);
-                let deref = ((hi as u16) << 8 | (lo as u16)).wrapping_add(cpu.register_y as u16);
+
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref = deref_base.wrapping_add(cpu.register_y as u16);
 
                 cpu.mem_write(deref as u16, data)
             }
             AddressingMode::Accumulator => {
-                panic!("shouldn't be here");
+                panic!("AddressingMode::Accumulator is only for reading");
             }
             AddressingMode::NoneAddressing => {
                 panic!("AddressingMode::NoneAddressing shouldn't be used to write data")
             }
         }
     }
+}
+
+fn page_cross_mode(mode: &AddressingMode) -> bool {
+    match mode {
+        AddressingMode::Absolute_X_PageCross
+        | AddressingMode::Absolute_Y_PageCross
+        | AddressingMode::Indirect_Y_PageCross => true,
+        _ => false,
+    }
+}
+
+fn page_cross(addr1: u16, addr2: u16) -> bool {
+    addr1 & 0xFF00 != addr2 & 0xFF00
 }

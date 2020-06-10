@@ -122,7 +122,7 @@ impl<'a, T: PPU> Bus<'a, T> {
 
                 self.ppu.borrow_mut().write_oam_dma(&buffer);
 
-                // todo: handle this eventually 
+                // todo: handle this eventually
                 // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
                 // self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
             }
@@ -201,7 +201,6 @@ impl<'a, T: PPU> Bus<'a, T> {
             //     0
             //     //ignore exapnsion rom for now
             // }
-
             _ => {
                 unimplemented!("attempting to read from {:x}", pos);
             }
@@ -211,11 +210,7 @@ impl<'a, T: PPU> Bus<'a, T> {
     pub fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
         let mut ppu = self.ppu.borrow_mut();
-        let mut render = false;
-        for i in 0..cycles*3 {
-            render = render | ppu.tick(1);
-        }
-        // let render = ppu.tick(cycles * 3); //todo: oh my..
+        let render = ppu.tick(cycles * 3); //todo: oh my..
         self.nmi_interrupt = ppu.poll_nmi_interrupt();
         render
     }
@@ -272,11 +267,11 @@ impl CpuBus for Bus<'_, NesPPU> {
         }
     }
 
-    fn trace(&self) -> BusTrace { 
+    fn trace(&self) -> BusTrace {
         BusTrace {
             cpu_cycles: self.cycles,
             ppu_cycles: self.ppu.borrow().cycles,
-            ppu_scanline: self.ppu.borrow().line
+            ppu_scanline: self.ppu.borrow().line,
         }
     }
 }
@@ -316,7 +311,7 @@ impl CpuBus for DynamicBusWrapper {
         self.bus.borrow_mut().tick(cycles);
     }
 
-    fn trace(&self) -> BusTrace  {
+    fn trace(&self) -> BusTrace {
         self.bus.borrow().trace()
     }
 }
@@ -348,9 +343,9 @@ impl CpuBus for MockBus {
 
     fn trace(&self) -> BusTrace {
         BusTrace {
-           cpu_cycles: self.cycles,
-           ppu_cycles: 0,
-           ppu_scanline: 0, 
+            cpu_cycles: self.cycles,
+            ppu_cycles: 0,
+            ppu_scanline: 0,
         }
     }
 }
