@@ -50,7 +50,7 @@ pub struct Bus<'call, T: PPU + 'call> {
     pub ram: [u8; 0x800],
     pub rom: Rom,
     pub nmi_interrupt: Option<u8>,
-    pub cycles: usize,
+    cycles: usize,
     ppu: RefCell<T>,
     interrupt_fn: Box<dyn FnMut(&T) + 'call>,
 }
@@ -75,7 +75,7 @@ impl<'a, T: PPU> Bus<'a, T> {
             ram: [0; 2048],
             rom: rom,
             nmi_interrupt: None,
-            cycles: 0,
+            cycles: 7, //todo implement reset
             ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)),
             interrupt_fn: Box::from(interrupt_fn),
         }
@@ -166,7 +166,8 @@ impl<'a, T: PPU> Bus<'a, T> {
                 self.ram[pos as usize]
             }
             0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
-                panic!("Attempt to read from write-only PPU address {:x}", pos);
+                //panic!("Attempt to read from write-only PPU address {:x}", pos);
+                0
             }
             0x2002 => self.ppu.borrow_mut().read_status(),
             0x2004 => self.ppu.borrow().read_oam_data(),
@@ -210,7 +211,11 @@ impl<'a, T: PPU> Bus<'a, T> {
     pub fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
         let mut ppu = self.ppu.borrow_mut();
-        let render = ppu.tick(cycles * 3); //todo: oh my..
+        let mut render = false;
+        for i in 0..cycles*3 {
+            render = render | ppu.tick(1);
+        }
+        // let render = ppu.tick(cycles * 3); //todo: oh my..
         self.nmi_interrupt = ppu.poll_nmi_interrupt();
         render
     }
@@ -233,6 +238,7 @@ impl<'a, T: PPU> Bus<'a, T> {
 pub trait CpuBus: Mem {
     fn poll_nmi_status(&mut self) -> Option<u8>;
     fn tick(&mut self, cycles: u8);
+    fn trace(&self) -> BusTrace;
 }
 
 impl Mem for Bus<'_, NesPPU> {
@@ -243,6 +249,11 @@ impl Mem for Bus<'_, NesPPU> {
     fn read(&self, pos: u16) -> u8 {
         Bus::read(self, pos)
     }
+}
+pub struct BusTrace {
+    pub cpu_cycles: usize,
+    pub ppu_cycles: usize,
+    pub ppu_scanline: usize,
 }
 
 impl CpuBus for Bus<'_, NesPPU> {
@@ -258,6 +269,14 @@ impl CpuBus for Bus<'_, NesPPU> {
         let render = Bus::<NesPPU>::tick(self, cycles as u16);
         if render {
             (self.interrupt_fn)(&*self.ppu.borrow());
+        }
+    }
+
+    fn trace(&self) -> BusTrace { 
+        BusTrace {
+            cpu_cycles: self.cycles,
+            ppu_cycles: self.ppu.borrow().cycles,
+            ppu_scanline: self.ppu.borrow().line
         }
     }
 }
@@ -296,6 +315,10 @@ impl CpuBus for DynamicBusWrapper {
     fn tick(&mut self, cycles: u8) {
         self.bus.borrow_mut().tick(cycles);
     }
+
+    fn trace(&self) -> BusTrace  {
+        self.bus.borrow().trace()
+    }
 }
 
 pub struct MockBus {
@@ -321,6 +344,14 @@ impl CpuBus for MockBus {
 
     fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
+    }
+
+    fn trace(&self) -> BusTrace {
+        BusTrace {
+           cpu_cycles: self.cycles,
+           ppu_cycles: 0,
+           ppu_scanline: 0, 
+        }
     }
 }
 

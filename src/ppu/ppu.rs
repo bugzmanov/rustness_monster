@@ -20,8 +20,8 @@ pub struct NesPPU {
     oamdma: u8,
     vram: [u8; 2048],
     oam_data: [u8; 256],
-    line: usize,
-    cycles: usize,
+    pub line: usize,
+    pub cycles: usize,
     nmi_interrupt: Option<u8>,
     palette_table: [u8; 32],
 }
@@ -190,7 +190,9 @@ pub fn render(ppu: &NesPPU) -> Frame {
             let tile = ppu.oam_data[i+1] as u16;
             let tile_x = ppu.oam_data[i+3] as usize;
             let tile_y = ppu.oam_data[i] as usize; 
-            // println!("idx={},tile={},x={},y={}",i, tile, tile_x, tile_y);
+            if i == 12 && !(tile_x ==0 && tile_y == 0){ 
+                println!("idx={},tile={},x={},y={}",i, tile, tile_x, tile_y);
+            }
             let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
             // let pallet
@@ -367,7 +369,6 @@ impl PPU for NesPPU {
             /* todo: implement working with palette */
             {
                 self.palette_table[(addr - 0x3f00) as usize] = value;
-                println!("write palette {:x}({}) {:x}", addr, addr - 0x3f00, value);
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
@@ -404,7 +405,7 @@ impl PPU for NesPPU {
     fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
         // println!("{}: {}", self.line, self.cycles);
-        if self.cycles > 341 {
+        if self.cycles >= 341 {
 
             if self.has_sprite_hit(self.cycles) {
                 self.status.set_sprite_zero_hit(true);

@@ -7,7 +7,7 @@ pub mod cpu;
 pub mod mem;
 pub mod opscode;
 
-pub fn trace(cpu: &CPU) -> String {
+pub fn trace(cpu: &mut CPU) -> String {
     let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
     let code = cpu.mem_read(cpu.program_counter);
     let ops = opscodes.get(&code).unwrap();
@@ -118,11 +118,13 @@ pub fn trace(cpu: &CPU) -> String {
         .trim()
         .to_string();
 
+    let bus_trace = cpu.bus.trace();    
     format!(
         // "{:47} A:{:02x} X:{:02x} Y:{:02x} SP:{:02x} FL:{:08b}",
-        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x}",
+        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x} PPU:{:3},{:3} CYC:{}",
         // "{:30}(a:{:x}, x:{:x}, y:{:x}, sp:{:x}, fl:{:x})",
-        asm_str, cpu.register_a, cpu.register_x, cpu.register_y, cpu.flags, cpu.stack_pointer
+        asm_str, cpu.register_a, cpu.register_x, cpu.register_y, cpu.flags, cpu.stack_pointer, 
+        bus_trace.ppu_cycles, bus_trace.ppu_scanline, bus_trace.cpu_cycles
     ).to_ascii_uppercase()
 }
 
@@ -145,7 +147,7 @@ mod test {
         cpu.register_y = 3;
         let mut result: Vec<String> = vec![];
         cpu.interpret_fn(0x64 + 4, |cpu| {
-            result.push(trace(&cpu));
+            result.push(trace(cpu));
         });
         assert_eq!(
             "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
@@ -177,7 +179,7 @@ mod test {
         cpu.register_y = 0;
         let mut result: Vec<String> = vec![];
         cpu.interpret_fn(0x64 + 2, |cpu| {
-            result.push(trace(&cpu));
+            result.push(trace(cpu));
         });
         assert_eq!(
             "0064  11 33     ORA ($33),Y @ 0400 = AA         A:00 X:00 Y:00 P:24 SP:FD",
