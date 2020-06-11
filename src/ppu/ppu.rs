@@ -204,7 +204,7 @@ pub fn render(ppu: &NesPPU) -> Frame {
         let tile_x = ppu.oam_data[i + 3] as usize;
         let tile_y = ppu.oam_data[i] as usize;
         if i == 12 && !(tile_x == 0 && tile_y == 0) {
-            println!("idx={},tile={},x={},y={}", i, tile, tile_x, tile_y);
+            // println!("idx={},tile={},x={},y={}", i, tile, tile_x, tile_y);
         }
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
@@ -430,7 +430,7 @@ impl PPU for NesPPU {
                 }
             }
 
-            if self.line >= 261 {
+            if self.line >= 262 {
                 self.line = 0;
                 self.nmi_interrupt = None;
                 self.status.set_sprite_zero_hit(false);

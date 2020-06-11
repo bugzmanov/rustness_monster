@@ -177,8 +177,10 @@ impl<'a, T: PPU> Bus<'a, T> {
                 //mirror IO registers
                 self.read(pos & 0b10000000000111)
             }
-            0x4000..=0x4013 => panic!("Attempt to read from write-only APU address {:x}", pos),
-
+            0x4000..=0x4013 => {
+                0
+                // panic!("Attempt to read from write-only APU address {:x}", pos),
+            }
             0x4015 => {
                 //todo: implement APU register
                 0

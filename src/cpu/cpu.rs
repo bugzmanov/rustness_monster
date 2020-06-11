@@ -263,9 +263,9 @@ impl<'a> CPU<'a> {
                 .wrapping_add(jump as u16);
 
             // todo: figure this out
-            // if self.program_counter & 0xFF00 != jump_addr & 0xFF00 {
-            //     self.bus.tick(1);
-            // }
+            if self.program_counter.wrapping_add(1) & 0xFF00 != jump_addr & 0xFF00 {
+                self.bus.tick(1);
+            }
             self.program_counter = jump_addr;
         }
     }
@@ -844,7 +844,7 @@ impl<'a> CPU<'a> {
                 self.add_to_register_a(data);
             }
 
-            /* ISC */
+            /* ISB */
             0xe7 | 0xf7 | 0xef | 0xff | 0xfb | 0xe3 | 0xf3 => {
                 let data = self.inc(&ops.mode);
                 self.sub_from_register_a(data);

@@ -135,7 +135,7 @@ pub fn trace(cpu: &mut CPU) -> String {
         .map(|z| format!("{:02x}", z))
         .collect::<Vec<String>>()
         .join(" ");
-    let asm_str = format!("{:04x}  {:8}  {} {}", begin, hex_str, ops.mnemonic, tmp)
+    let asm_str = format!("{:04x}  {:8} {: >4} {}", begin, hex_str, ops.mnemonic, tmp)
         .trim()
         .to_string();
 
