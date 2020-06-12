@@ -24,6 +24,7 @@ pub struct NesPPU {
     pub cycles: usize,
     nmi_interrupt: Option<u8>,
     palette_table: [u8; 32],
+    read_data_buf: u8,
 }
 
 struct Addr {
@@ -286,6 +287,7 @@ impl NesPPU {
             cycles: 0,
             nmi_interrupt: None,
             palette_table: [0; 32],
+            read_data_buf: 0
         }
     }
 
@@ -390,8 +392,16 @@ impl PPU for NesPPU {
         self.increment_vram_addr();
 
         match addr {
-            0..=0x1fff => self.chr_rom[addr as usize],
-            0x2000..=0x2fff => self.vram[self.mirror_vram_addr(addr) as usize],
+            0..=0x1fff => {
+                let result = self.read_data_buf;
+                self.read_data_buf = self.chr_rom[addr as usize];
+                result
+            }
+            0x2000..=0x2fff => {
+                let result = self.read_data_buf;
+                self.read_data_buf = self.vram[self.mirror_vram_addr(addr) as usize];
+                result
+            }
             0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
             0x3f00..=0x3fff =>
             /* todo: implement working with palette */
