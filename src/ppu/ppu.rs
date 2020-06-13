@@ -591,10 +591,9 @@ pub mod test {
         ppu.write_to_ppu_addr(0x23);
         ppu.write_to_ppu_addr(0x05);
 
-        ppu.read_data();//load_into_buffer
+        ppu.read_data(); //load_into_buffer
         assert_eq!(ppu.addr.read(), 0x2306);
         assert_eq!(ppu.read_data(), 0x66);
-       
     }
 
     #[test]
@@ -607,7 +606,7 @@ pub mod test {
         ppu.write_to_ppu_addr(0x21);
         ppu.write_to_ppu_addr(0xff);
 
-        ppu.read_data();//load_into_buffer
+        ppu.read_data(); //load_into_buffer
         assert_eq!(ppu.read_data(), 0x66);
         assert_eq!(ppu.read_data(), 0x77);
     }
@@ -623,7 +622,7 @@ pub mod test {
         ppu.write_to_ppu_addr(0x21);
         ppu.write_to_ppu_addr(0xff);
 
-        ppu.read_data();//load_into_buffer
+        ppu.read_data(); //load_into_buffer
         assert_eq!(ppu.read_data(), 0x66);
         assert_eq!(ppu.read_data(), 0x77);
         assert_eq!(ppu.read_data(), 0x88);
@@ -678,13 +677,13 @@ pub mod test {
         ppu.write_to_ppu_addr(0x28);
         ppu.write_to_ppu_addr(0x05);
 
-        ppu.read_data();//load into buffer
+        ppu.read_data(); //load into buffer
         assert_eq!(ppu.read_data(), 0x66); //read from a
 
         ppu.write_to_ppu_addr(0x24);
         ppu.write_to_ppu_addr(0x05);
 
-        ppu.read_data();//load into buffer
+        ppu.read_data(); //load into buffer
         assert_eq!(ppu.read_data(), 0x77); //read from B
     }
 
@@ -697,7 +696,7 @@ pub mod test {
         ppu.write_to_ppu_addr(0x23);
         ppu.write_to_ppu_addr(0x05);
 
-        ppu.read_data();//load_into_buffer
+        ppu.read_data(); //load_into_buffer
         assert_ne!(ppu.read_data(), 0x66);
 
         ppu.read_status();
@@ -705,7 +704,7 @@ pub mod test {
         ppu.write_to_ppu_addr(0x23);
         ppu.write_to_ppu_addr(0x05);
 
-        ppu.read_data();//load_into_buffer
+        ppu.read_data(); //load_into_buffer
         assert_eq!(ppu.read_data(), 0x66);
     }
 

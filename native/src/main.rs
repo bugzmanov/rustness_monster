@@ -1,5 +1,6 @@
 use rustness::bus::bus::Bus;
 use rustness::cpu::cpu::CPU;
+use rustness::input;
 use rustness::ppu::ppu;
 use rustness::ppu::ppu::NesPPU;
 use rustness::rom::ines::Rom;
@@ -8,16 +9,26 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
+use std::fs::File;
+use std::io::Read;
 use std::time::Duration;
 use std::time::SystemTime;
 
-use std::fs::File;
-use std::io::Read;
-
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 fn main() {
+    let mut keyMap = HashMap::new();
+    keyMap.insert(Keycode::Down, input::JoypadButton::DOWN);
+    keyMap.insert(Keycode::Up, input::JoypadButton::UP);
+    keyMap.insert(Keycode::Right, input::JoypadButton::RIGHT);
+    keyMap.insert(Keycode::Left, input::JoypadButton::LEFT);
+    keyMap.insert(Keycode::Space, input::JoypadButton::SELECT);
+    keyMap.insert(Keycode::Return, input::JoypadButton::START);
+    keyMap.insert(Keycode::A, input::JoypadButton::BUTTON_A);
+    keyMap.insert(Keycode::S, input::JoypadButton::BUTTON_B);
+
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     let mut file = File::open("test_rom/pacman.nes").unwrap();
     // let mut file = File::open("test_rom/nestest.nes").unwrap();
@@ -49,7 +60,7 @@ fn main() {
     let trace = Rc::from(RefCell::from(false));
 
     let trace_rc = trace.clone();
-    let func = move |z: &NesPPU| {
+    let func = move |z: &NesPPU, joypad: &mut input::Joypad| {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -63,6 +74,17 @@ fn main() {
                 } => {
                     let upd = !*trace_rc.borrow();
                     trace_rc.replace(upd);
+                }
+
+                Event::KeyDown { keycode, .. } => {
+                    if let Some(key) = keyMap.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                        joypad.set_button_pressed_status(*key, true);
+                    }
+                }
+                Event::KeyUp { keycode, .. } => {
+                    if let Some(key) = keyMap.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                        joypad.set_button_pressed_status(*key, false);
+                    }
                 }
                 _ => {}
             }

@@ -962,11 +962,11 @@ impl<'a> CPU<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::bus::bus::MockBus;
     use crate::bus::bus::DynamicBusWrapper;
+    use crate::bus::bus::MockBus;
     use std::cell::RefCell;
     use std::rc::Rc;
-    
+
     #[test]
     fn test_transform() {
         assert_eq!(CPU::transform("a9 8d"), [169, 141]);

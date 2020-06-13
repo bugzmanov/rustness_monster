@@ -1,9 +1,9 @@
 use rustness::bus::bus::Bus;
 use rustness::cpu::cpu::CPU;
+use rustness::input;
 use rustness::ppu::ppu;
 use rustness::ppu::ppu::NesPPU;
 use rustness::rom::ines::Rom;
-
 use std::io::Read;
 
 use rustness::bus::bus::DynamicBusWrapper;
@@ -20,7 +20,7 @@ fn main() {
 
     let rom = Rom::load(&data).unwrap();
 
-    let func = |z: &NesPPU| {
+    let func = |z: &NesPPU, _: &mut input::Joypad| {
         // let frame = ppu::render(z);
     };
 

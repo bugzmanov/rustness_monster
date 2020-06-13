@@ -1,8 +1,8 @@
 use crate::cpu::mem::Mem;
+use crate::input;
 use crate::ppu::ppu::NesPPU;
 use crate::ppu::ppu::PPU;
 use crate::rom::ines::Rom;
-use crate::input;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -53,10 +53,9 @@ pub struct Bus<'call, T: PPU + 'call> {
     pub nmi_interrupt: Option<u8>,
     cycles: usize,
     ppu: RefCell<T>,
-    interrupt_fn: Box<dyn FnMut(&T) + 'call>,
+    interrupt_fn: Box<dyn FnMut(&T, &mut input::Joypad) + 'call>,
     joypad1: input::Joypad,
     joypad2: input::Joypad,
-
 }
 
 fn map_mirrors(pos: u16) -> u16 {
@@ -71,7 +70,7 @@ fn map_mirrors(pos: u16) -> u16 {
 impl<'a, T: PPU> Bus<'a, T> {
     pub fn new<'call, F>(rom: Rom, interrupt_fn: F) -> Bus<'call, NesPPU>
     where
-        F: FnMut(&NesPPU) + 'call,
+        F: FnMut(&NesPPU, &mut input::Joypad) + 'call,
     {
         let chr_rom_copy = rom.chr_rom.clone(); // todo: this will bite me with mappers
         let mirroring = rom.rom_flags.mirroring();
@@ -190,13 +189,9 @@ impl<'a, T: PPU> Bus<'a, T> {
                 0
             }
 
-            0x4016 => {
-                self.joypad1.read()
-            }
+            0x4016 => self.joypad1.read(),
 
-            0x4017 => {
-                self.joypad2.read()
-            }
+            0x4017 => self.joypad2.read(),
 
             //todo 0x4000 - 0x8000
             PRG_ROM..=PRG_ROM_END => self.read_prg_rom(pos),
@@ -267,7 +262,7 @@ impl CpuBus for Bus<'_, NesPPU> {
     fn tick(&mut self, cycles: u8) {
         let render = Bus::<NesPPU>::tick(self, cycles as u16);
         if render {
-            (self.interrupt_fn)(&*self.ppu.borrow());
+            (self.interrupt_fn)(&*self.ppu.borrow(), &mut self.joypad1);
         }
     }
 
@@ -372,7 +367,7 @@ mod test {
     use crate::rom::ines::test_ines_rom;
 
     fn stub_bus() -> Bus<'static, MockPPU> {
-        let func = |_: &MockPPU| {};
+        let func = |_: &MockPPU, _: &mut input::Joypad| {};
         Bus {
             ram: [0; 0x800],
             rom: test_ines_rom::test_rom(),
