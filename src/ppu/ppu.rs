@@ -6,7 +6,6 @@ use crate::ppu::registers::status::StatusRegister;
 use crate::rom::ines::Mirroring;
 use crate::screen::frame::Frame;
 use crate::screen::pallete;
-use rand::Rng;
 
 pub struct NesPPU {
     chr_rom: Vec<u8>,
@@ -188,12 +187,12 @@ pub fn render(ppu: &NesPPU) -> Frame {
 
     for i in (0..ppu.oam_data.len()).step_by(4).rev() {
         // if(ppu.oam_data[i] != 0) {
-        let flip_vertical = if (ppu.oam_data[i + 2] >> 7 & 1 == 1) {
+        let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
             true
         } else {
             false
         };
-        let flip_horizontal = if (ppu.oam_data[i + 2] >> 6 & 1 == 1) {
+        let flip_horizontal = if ppu.oam_data[i + 2] >> 6 & 1 == 1 {
             true
         } else {
             false

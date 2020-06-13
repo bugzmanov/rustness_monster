@@ -24,13 +24,13 @@ fn main() {
         // let frame = ppu::render(z);
     };
 
-    let bus = Bus::<NesPPU>::new(rom, func);
+    let mut bus = Bus::<NesPPU>::new(rom, func);
 
     let pc = bus.read(0xfffc);
     let ffd = bus.read(0xfffd);
 
     let memory = Rc::from(RefCell::from(bus));
-    let mut mem_wraper = DynamicBusWrapper::new(memory.clone());
+    let mem_wraper = DynamicBusWrapper::new(memory.clone());
     let mut cpu = CPU::new(Box::from(mem_wraper));
     cpu.program_counter = 0xc000; //0x8000 as u16 + pc as u16;
 

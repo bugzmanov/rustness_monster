@@ -2,6 +2,7 @@ use crate::cpu::mem::Mem;
 use crate::ppu::ppu::NesPPU;
 use crate::ppu::ppu::PPU;
 use crate::rom::ines::Rom;
+use crate::input;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -53,6 +54,9 @@ pub struct Bus<'call, T: PPU + 'call> {
     cycles: usize,
     ppu: RefCell<T>,
     interrupt_fn: Box<dyn FnMut(&T) + 'call>,
+    joypad1: input::Joypad,
+    joypad2: input::Joypad,
+
 }
 
 fn map_mirrors(pos: u16) -> u16 {
@@ -78,6 +82,8 @@ impl<'a, T: PPU> Bus<'a, T> {
             cycles: 7, //todo implement reset
             ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)),
             interrupt_fn: Box::from(interrupt_fn),
+            joypad1: input::Joypad::new(),
+            joypad2: input::Joypad::new(),
         }
     }
 
@@ -138,13 +144,11 @@ impl<'a, T: PPU> Bus<'a, T> {
             }
 
             0x4016 => {
-                //todo: implement
-                //ignore joypad 1 for now
+                self.joypad1.write(data);
             }
 
             0x4017 => {
-                //todo: implement
-                //ignore joypad 2 for now
+                self.joypad2.write(data);
             }
 
             PRG_ROM..=PRG_ROM_END => {
@@ -159,7 +163,7 @@ impl<'a, T: PPU> Bus<'a, T> {
         }
     }
 
-    pub fn read(&self, pos: u16) -> u8 {
+    pub fn read(&mut self, pos: u16) -> u8 {
         match pos {
             0x0..=RAM_MIRRORS_END => {
                 let pos = map_mirrors(pos);
@@ -187,13 +191,11 @@ impl<'a, T: PPU> Bus<'a, T> {
             }
 
             0x4016 => {
-                //ignore joypad 1 for now
-                0
+                self.joypad1.read()
             }
 
             0x4017 => {
-                //ignore joypad 2 for now
-                0
+                self.joypad2.read()
             }
 
             //todo 0x4000 - 0x8000
@@ -243,7 +245,7 @@ impl Mem for Bus<'_, NesPPU> {
         Bus::write(self, pos, data);
     }
 
-    fn read(&self, pos: u16) -> u8 {
+    fn read(&mut self, pos: u16) -> u8 {
         Bus::read(self, pos)
     }
 }
@@ -296,11 +298,11 @@ impl Mem for DynamicBusWrapper {
     fn write_u16(&mut self, pos: u16, data: u16) {
         self.bus.borrow_mut().write_u16(pos, data);
     }
-    fn read(&self, pos: u16) -> u8 {
-        self.bus.borrow().read(pos)
+    fn read(&mut self, pos: u16) -> u8 {
+        self.bus.borrow_mut().read(pos)
     }
-    fn read_u16(&self, pos: u16) -> u16 {
-        self.bus.borrow().read_u16(pos)
+    fn read_u16(&mut self, pos: u16) -> u16 {
+        self.bus.borrow_mut().read_u16(pos)
     }
 }
 
@@ -329,7 +331,7 @@ impl Mem for MockBus {
         self.space[pos as usize] = data
     }
 
-    fn read(&self, pos: u16) -> u8 {
+    fn read(&mut self, pos: u16) -> u8 {
         self.space[pos as usize]
     }
 }
@@ -378,6 +380,8 @@ mod test {
             cycles: 0,
             ppu: RefCell::from(test::stub_ppu()),
             interrupt_fn: Box::from(func),
+            joypad1: input::Joypad::new(),
+            joypad2: input::Joypad::new(),
         }
     }
 

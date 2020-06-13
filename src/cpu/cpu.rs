@@ -1,16 +1,13 @@
 // https://skilldrick.github.io/easy6502/
 // http://nesdev.com/6502_cpu.txt
 use crate::bus::bus::CpuBus;
-use crate::bus::bus::DynamicBusWrapper;
 use crate::cpu::mem::AddressingMode;
 use crate::cpu::opscode;
 use hex;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
-bitflags! {
 
+bitflags! {
 /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
 ///
 ///  7 6 5 4 3 2 1 0
@@ -226,11 +223,11 @@ impl<'a> CPU<'a> {
         // self.mem_read_u16((STACK as u16) + self.stack_pointer as u16)
     }
 
-    pub(super) fn mem_read(&self, pos: u16) -> u8 {
+    pub(super) fn mem_read(&mut self, pos: u16) -> u8 {
         self.bus.read(pos)
     }
 
-    pub(super) fn mem_read_u16(&self, pos: u16) -> u16 {
+    pub(super) fn mem_read_u16(&mut self, pos: u16) -> u16 {
         self.bus.read_u16(pos)
     }
 
@@ -966,7 +963,10 @@ impl<'a> CPU<'a> {
 mod test {
     use super::*;
     use crate::bus::bus::MockBus;
-
+    use crate::bus::bus::DynamicBusWrapper;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    
     #[test]
     fn test_transform() {
         assert_eq!(CPU::transform("a9 8d"), [169, 141]);
@@ -1176,18 +1176,6 @@ mod test {
         cpu.interpret(&CPU::transform("e9 02"), 100);
         assert_eq!(cpu.register_a, 0x0d);
         assert_eq!(cpu.program_counter, 102);
-        assert!(cpu.flags.contains(CpuFlags::CARRY));
-        assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
-        assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
-    }
-
-    #[test]
-    fn test_0xe9_sbc_thorough() {
-        let mem = MockBus::new();
-        let mut cpu = CPU::new(Box::from(mem));
-        cpu.register_a = 0x05;
-        cpu.interpret(&CPU::transform("e9 01 69 01 e9 01"), 100);
-        assert_eq!(cpu.register_a, 0x04);
         assert!(cpu.flags.contains(CpuFlags::CARRY));
         assert!(!cpu.flags.contains(CpuFlags::NEGATIV));
         assert!(!cpu.flags.contains(CpuFlags::OVERFLOW));
