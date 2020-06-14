@@ -7,15 +7,40 @@ pub mod cpu;
 pub mod mem;
 pub mod opscode;
 
-// todo: fix: reading from PPU address registers  modifies PPUs state
+lazy_static! {
+    pub static ref NON_READABLE_ADDR: Vec<u16> =
+        vec!(0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x4016, 0x4017);
+}
+
 pub fn trace(cpu: &mut CPU) -> String {
     let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
+    let ref non_readable_addr = *NON_READABLE_ADDR;
+
     let code = cpu.mem_read(cpu.program_counter);
     let ops = opscodes.get(&code).unwrap();
 
     let begin = cpu.program_counter;
     let mut hex_dump = vec![];
     hex_dump.push(code);
+
+    let (mem_addr, stored_value) = match ops.mode {
+        AddressingMode::Immediate
+        | AddressingMode::NoneAddressing
+        | AddressingMode::Accumulator => (0, 0),
+        _ => {
+            let address = if ops.len == 2 {
+                cpu.mem_read(begin + 1) as u16
+            } else {
+                cpu.mem_read_u16(begin + 1)
+            };
+            let (_, addr) = ops.mode.get_absolute_addr(cpu, address);
+            if !non_readable_addr.contains(&addr) {
+                (addr, cpu.mem_read(addr))
+            } else {
+                (addr, 0)
+            }
+        }
+    };
 
     let tmp = match ops.len {
         1 => match ops.mode {
@@ -26,41 +51,26 @@ pub fn trace(cpu: &mut CPU) -> String {
             let address: u8 = cpu.mem_read(begin + 1);
             // let value = cpu.mem_read(address));
             hex_dump.push(address);
+
             match ops.mode {
                 AddressingMode::Immediate => format!("#${:02x}", address),
-                AddressingMode::ZeroPage => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!("${:02x} = {:02x}", mem_addr, stored_value)
-                }
-                AddressingMode::ZeroPage_X => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!(
-                        "${:02x},X @ {:02x} = {:02x}",
-                        address, mem_addr, stored_value
-                    )
-                }
-                AddressingMode::ZeroPage_Y => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!(
-                        "${:02x},Y @ {:02x} = {:02x}",
-                        address, mem_addr, stored_value
-                    )
-                }
-                AddressingMode::Indirect_X => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address as u16);
-                    format!(
-                        "(${:02x},X) @ {:04x} = {:02x}",
-                        address, mem_addr, stored_value
-                    )
-                }
-                AddressingMode::Indirect_Y | AddressingMode::Indirect_Y_PageCross => {
-                    let (mem_addr, stored_value) =
-                        AddressingMode::Indirect_Y.read_u8_from_pos(cpu, address as u16);
-                    format!(
-                        "(${:02x}),Y @ {:04x} = {:02x}",
-                        address, mem_addr, stored_value
-                    )
-                }
+                AddressingMode::ZeroPage => format!("${:02x} = {:02x}", mem_addr, stored_value),
+                AddressingMode::ZeroPage_X => format!(
+                    "${:02x},X @ {:02x} = {:02x}",
+                    address, mem_addr, stored_value
+                ),
+                AddressingMode::ZeroPage_Y => format!(
+                    "${:02x},Y @ {:02x} = {:02x}",
+                    address, mem_addr, stored_value
+                ),
+                AddressingMode::Indirect_X => format!(
+                    "(${:02x},X) @ {:02x} = {:04x} = {:02x}",
+                    address, (address.wrapping_add(cpu.register_x)), mem_addr, stored_value
+                ),
+                AddressingMode::Indirect_Y | AddressingMode::Indirect_Y_PageCross => format!(
+                    "(${:02x}),Y = {:04x} @ {:04x} = {:02x}",
+                    address, (mem_addr.wrapping_sub(cpu.register_y as u16)), mem_addr, stored_value
+                ),
                 AddressingMode::NoneAddressing => {
                     // assuming local jumps: BNE, BVS, etc.... todo: check ?
                     let address: usize =
@@ -100,28 +110,15 @@ pub fn trace(cpu: &mut CPU) -> String {
                         format!("${:04x}", address)
                     }
                 }
-                AddressingMode::Absolute => {
-                    let (mem_addr, stored_value) = ops.mode.read_u8_from_pos(cpu, address);
-
-                    format!("${:04x} = {:02x}", mem_addr, stored_value)
-                }
-                AddressingMode::Absolute_X | AddressingMode::Absolute_X_PageCross => {
-                    let (mem_addr, stored_value) =
-                        AddressingMode::Absolute_X.read_u8_from_pos(cpu, address);
-
-                    format!(
-                        "${:04x},X @ {:04x} = {:02x}",
-                        address, mem_addr, stored_value
-                    )
-                }
-                AddressingMode::Absolute_Y | AddressingMode::Absolute_Y_PageCross => {
-                    let (mem_addr, stored_value) =
-                        AddressingMode::Absolute_Y.read_u8_from_pos(cpu, address);
-                    format!(
-                        "${:04x},Y @ {:04x} = {:02x}",
-                        address, mem_addr, stored_value
-                    )
-                }
+                AddressingMode::Absolute => format!("${:04x} = {:02x}", mem_addr, stored_value),
+                AddressingMode::Absolute_X | AddressingMode::Absolute_X_PageCross => format!(
+                    "${:04x},X @ {:04x} = {:02x}",
+                    address, mem_addr, stored_value
+                ),
+                AddressingMode::Absolute_Y | AddressingMode::Absolute_Y_PageCross => format!(
+                    "${:04x},Y @ {:04x} = {:02x}",
+                    address, mem_addr, stored_value
+                ),
                 _ => panic!(
                     "unexpected addressing mode {:?} has ops-len 3. code {:02x}",
                     ops.mode, ops.code
@@ -212,7 +209,7 @@ mod test {
             result.push(trace(cpu));
         });
         assert_eq!(
-            "0064  11 33     ORA ($33),Y @ 0400 = AA         A:00 X:00 Y:00 P:24 SP:FD PPU:  0,  0 CYC:0",
+            "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD PPU:  0,  0 CYC:0",
             result[0]
         );
     }

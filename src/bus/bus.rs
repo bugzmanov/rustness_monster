@@ -416,11 +416,7 @@ mod test {
         // assert_eq!(bus.cycles, 513); //todo: bring back
 
         assert!(
-            bus.ppu
-                .oam
-                .iter()
-                .zip(0..255u8)
-                .all(|(a, b)| *a == b),
+            bus.ppu.oam.iter().zip(0..255u8).all(|(a, b)| *a == b),
             "oam data arrrays are not equal"
         );
     }
