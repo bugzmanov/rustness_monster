@@ -7,6 +7,7 @@ pub mod cpu;
 pub mod mem;
 pub mod opscode;
 
+// todo: fix: reading from PPU address registers  modifies PPUs state
 pub fn trace(cpu: &mut CPU) -> String {
     let ref opscodes: HashMap<u8, &'static opscode::OpsCode> = *opscode::OPSCODES_MAP;
     let code = cpu.mem_read(cpu.program_counter);

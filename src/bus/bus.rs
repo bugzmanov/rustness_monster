@@ -52,7 +52,7 @@ pub struct Bus<'call, T: PPU + 'call> {
     pub rom: Rom,
     pub nmi_interrupt: Option<u8>,
     cycles: usize,
-    ppu: RefCell<T>,
+    ppu: T,
     interrupt_fn: Box<dyn FnMut(&T, &mut input::Joypad) + 'call>,
     joypad1: input::Joypad,
     joypad2: input::Joypad,
@@ -79,7 +79,7 @@ impl<'a, T: PPU> Bus<'a, T> {
             rom: rom,
             nmi_interrupt: None,
             cycles: 7, //todo implement reset
-            ppu: RefCell::from(NesPPU::new(chr_rom_copy, mirroring)),
+            ppu: NesPPU::new(chr_rom_copy, mirroring),
             interrupt_fn: Box::from(interrupt_fn),
             joypad1: input::Joypad::new(),
             joypad2: input::Joypad::new(),
@@ -93,29 +93,29 @@ impl<'a, T: PPU> Bus<'a, T> {
                 self.ram[pos as usize] = data;
             }
             0x2000 => {
-                self.ppu.borrow_mut().write_to_ctrl(data);
+                self.ppu.write_to_ctrl(data);
             }
             0x2001 => {
-                self.ppu.borrow_mut().write_to_mask(data);
+                self.ppu.write_to_mask(data);
             }
 
             0x2002 => panic!("attempt to write to PPU status register"),
 
             0x2003 => {
-                self.ppu.borrow_mut().write_to_oam_addr(data);
+                self.ppu.write_to_oam_addr(data);
             }
             0x2004 => {
-                self.ppu.borrow_mut().write_to_oam_data(data);
+                self.ppu.write_to_oam_data(data);
             }
             0x2005 => {
-                self.ppu.borrow_mut().write_to_scroll(data);
+                self.ppu.write_to_scroll(data);
             }
 
             0x2006 => {
-                self.ppu.borrow_mut().write_to_ppu_addr(data);
+                self.ppu.write_to_ppu_addr(data);
             }
             0x2007 => {
-                self.ppu.borrow_mut().write_to_data(data);
+                self.ppu.write_to_data(data);
             }
             // https://wiki.nesdev.com/w/index.php/PPU_programmer_reference#OAM_DMA_.28.244014.29_.3E_write
             0x4014 => {
@@ -125,7 +125,7 @@ impl<'a, T: PPU> Bus<'a, T> {
                     buffer[i as usize] = self.read(hi + i);
                 }
 
-                self.ppu.borrow_mut().write_oam_dma(&buffer);
+                self.ppu.write_oam_dma(&buffer);
 
                 // todo: handle this eventually
                 // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
@@ -172,9 +172,9 @@ impl<'a, T: PPU> Bus<'a, T> {
                 //panic!("Attempt to read from write-only PPU address {:x}", pos);
                 0
             }
-            0x2002 => self.ppu.borrow_mut().read_status(),
-            0x2004 => self.ppu.borrow().read_oam_data(),
-            0x2007 => self.ppu.borrow_mut().read_data(),
+            0x2002 => self.ppu.read_status(),
+            0x2004 => self.ppu.read_oam_data(),
+            0x2007 => self.ppu.read_data(),
 
             IO_MIRRORS..=IO_MIRRORS_END => {
                 //mirror IO registers
@@ -208,9 +208,8 @@ impl<'a, T: PPU> Bus<'a, T> {
 
     pub fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
-        let mut ppu = self.ppu.borrow_mut();
-        let render = ppu.tick(cycles * 3); //todo: oh my..
-        self.nmi_interrupt = ppu.poll_nmi_interrupt();
+        let render = self.ppu.tick(cycles * 3); //todo: oh my..
+        self.nmi_interrupt = self.ppu.poll_nmi_interrupt();
         render
     }
 
@@ -252,25 +251,21 @@ pub struct BusTrace {
 
 impl CpuBus for Bus<'_, NesPPU> {
     fn poll_nmi_status(&mut self) -> Option<u8> {
-        // if self.nmi_interrupt.is_some() {
-        //     (self.interrupt_fn)(&*self.ppu.borrow());
-        // }
-
         Bus::poll_nmi_status(self)
     }
 
     fn tick(&mut self, cycles: u8) {
         let render = Bus::<NesPPU>::tick(self, cycles as u16);
         if render {
-            (self.interrupt_fn)(&*self.ppu.borrow(), &mut self.joypad1);
+            (self.interrupt_fn)(&self.ppu, &mut self.joypad1);
         }
     }
 
     fn trace(&self) -> BusTrace {
         BusTrace {
             cpu_cycles: self.cycles,
-            ppu_cycles: self.ppu.borrow().cycles,
-            ppu_scanline: self.ppu.borrow().line,
+            ppu_cycles: self.ppu.cycles,
+            ppu_scanline: self.ppu.line,
         }
     }
 }
@@ -373,7 +368,7 @@ mod test {
             rom: test_ines_rom::test_rom(),
             nmi_interrupt: None,
             cycles: 0,
-            ppu: RefCell::from(test::stub_ppu()),
+            ppu: test::stub_ppu(),
             interrupt_fn: Box::from(func),
             joypad1: input::Joypad::new(),
             joypad2: input::Joypad::new(),
@@ -400,12 +395,12 @@ mod test {
         let mut bus = stub_bus();
 
         bus.write(0x2008, 1);
-        assert_eq!(bus.ppu.borrow().ctrl, 1);
+        assert_eq!(bus.ppu.ctrl, 1);
 
         // from: https://wiki.nesdev.com/w/index.php/PPU_registers
         //a write to $3456 is the same as a write to $2006.
         bus.write(0x3456, 5);
-        assert_eq!(bus.ppu.borrow().addr, 5);
+        assert_eq!(bus.ppu.addr, 5);
     }
 
     #[test]
@@ -422,7 +417,6 @@ mod test {
 
         assert!(
             bus.ppu
-                .borrow()
                 .oam
                 .iter()
                 .zip(0..255u8)
