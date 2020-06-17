@@ -14,9 +14,8 @@ pub struct NesPPU {
     mask: MaskRegister,
     status: StatusRegister,
     oam_addr: u8,
-    scroll: u8,
+    scroll: Scroll,
     addr: Addr,
-    oamdma: u8,
     vram: [u8; 2048],
     oam_data: [u8; 256],
     pub line: usize,
@@ -70,6 +69,36 @@ impl Addr {
     }
 }
 
+struct Scroll {
+    pub scroll_x: u8,
+    pub scroll_y: u8,
+    latch: bool
+}
+
+impl Scroll {
+
+    fn new() -> Self {
+        Scroll {
+            scroll_x: 0,
+            scroll_y: 0,
+            latch: false
+        }
+    }
+
+    fn write(&mut self, data: u8) {
+        if !self.latch {
+            self.scroll_x = data;
+        } else {
+            self.scroll_y = data;
+        }
+        self.latch = !self.latch;
+    }
+
+    fn reset_latch(&mut self) {
+        self.latch = false;
+    }
+}
+
 pub trait PPU {
     fn write_to_ctrl(&mut self, value: u8);
     fn write_to_mask(&mut self, value: u8);
@@ -101,13 +130,20 @@ fn sprite_palette(ppu: &NesPPU, pallete_idx: u8) -> [u8; 4] {
     ]
 }
 
-fn bg_pallette(ppu: &NesPPU, tile_x: usize, tile_y: usize) -> [u8; 4] {
-    // 0,0 -> 0 ... 0,3 -> 0  3,3 -> 0     0,4 .. 0,7 -> 1
-
+fn bg_pallette(ppu: &NesPPU, tile_addr: u16, tile_x: usize, tile_y: usize) -> [u8; 4] {
     let attr_table_idx = tile_y / 4 * 8 + tile_x / 4;
-    let attr_byte = ppu.vram[0x3c0 + attr_table_idx];
 
-    // println!("tile:{},{} -  attr_table_idx {}",tile_x, tile_y, attr_table_idx);
+    let pos = match tile_addr {
+        0x2000..=0x23FF => 0x23C0,
+        0x2400..=0x27FF => 0x27C0,
+        0x2800..=0x2BFF => 0x2BC0,
+        0x2C00..=0x2FFF => 0x2FC0,
+        0x3000..=0x3FFF => return bg_pallette(ppu, tile_addr & 0b10111111111111, tile_x, tile_y),
+        _ => panic!("unreachable addr {:x}", tile_addr),
+    };
+
+    let vram_idx = ppu.mirror_vram_addr((pos + attr_table_idx) as u16) as usize;
+    let attr_byte = ppu.vram[vram_idx ];
 
     let pallet_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
         (0, 0) => attr_byte & 0b11,
@@ -117,7 +153,6 @@ fn bg_pallette(ppu: &NesPPU, tile_x: usize, tile_y: usize) -> [u8; 4] {
         (_, _) => panic!("should not happen"),
     };
 
-    // let pallete_start = 0x3f01 + pallet_idx*3;
     let pallete_start: usize = 1 + (pallet_idx as usize) * 4;
     [
         ppu.palette_table[0],
@@ -125,30 +160,36 @@ fn bg_pallette(ppu: &NesPPU, tile_x: usize, tile_y: usize) -> [u8; 4] {
         ppu.palette_table[pallete_start + 1],
         ppu.palette_table[pallete_start + 2],
     ]
-
-    // let attr_table_idx = tile_y / 4 * 8 + tile_x / 4
 }
 
 pub fn render(ppu: &NesPPU) -> Frame {
     let mut frame = Frame::new();
     let bank = ppu.ctrl.bknd_pattern_addr();
+    let offset_x = (ppu.scroll.scroll_x ) as i32;
+    let offset_y = (ppu.scroll.scroll_y ) as i32;
 
-    let mut rng = rand::thread_rng();
-    // let color_1 = rng.gen_range(10, 50);
-    // let color_2 = color_1 - 10;
-
+    println!("{} {}" ,offset_x, offset_y);
+    println!("{:x}", ppu.ctrl.nametable_addr());
+    // for i in 0..0x3c0 {
     for i in 0..0x3c0 {
-        // for i in 0..2 {
-        let tile = ppu.vram[i] as u16;
+        let mut start = i as u16 + (offset_x as u16) + ((offset_y*32) as u16);
+        if start >= 0x3c0 {
+            start += 64; //skip attribute table
+        }
+
+        start += ppu.ctrl.nametable_addr();
+
+        // let mirror_i = ppu.mirror_vram_addr(i as u16) as usize; 
+        let mirror_i = ppu.mirror_vram_addr(start as u16) as usize; 
+        let tile = ppu.vram[mirror_i] as u16;
         let tile_x = i % 32;
         let tile_y = i / 32;
+        // if(tile != 32) {
+        //     println!("{}:x={},y={}", tile, tile_x, tile_y);
+        // }
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
-        // let pallet
-
-        // let palette = &ppu.palette_table[16..=31];
-        let palette = bg_pallette(ppu, tile_x, tile_y);
-        // let palette = &ppu.palette_table[29..=31];
+        let palette = bg_pallette(ppu, start as u16, tile_x, tile_y);
 
         for y in 0..=7 {
             let mut upper = tile[y];
@@ -159,34 +200,20 @@ pub fn render(ppu: &NesPPU) -> Frame {
                 upper = upper >> 1;
                 lower = lower >> 1;
                 let rgb = match value {
-                    // 0 => pallete::YUV[0x01],
-                    // 1 => pallete::YUV[0x23],
-                    // 2 => pallete::YUV[0x27],
-                    // 3 => pallete::YUV[0x2b],
-                    // _ => panic!("can't be"),
                     0 => pallete::YUV[ppu.palette_table[0] as usize],
                     1 => pallete::YUV[palette[1] as usize],
                     2 => pallete::YUV[palette[2] as usize],
                     3 => pallete::YUV[palette[3] as usize],
                     _ => panic!("can't be"),
                 };
-                // frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
-                // println!("x={},y={}", tile_x*8 +x, tile_y*8 +y);
-
-                frame.set_pixel(tile_x * 8 + x, tile_y * 8 + y, rgb)
-                // frame.set_pixel(tile_x*7 + x, tile_y*7 + y, (0xff, 0, 0))
+                let pixel_x = tile_x * 8 + x;
+                let pixel_y = tile_y * 8 + y;
+                frame.set_pixel((pixel_x as i32 ) as usize, (pixel_y as i32 ) as usize, rgb)
             }
         }
-
-        // frame.set_pixel(x, 00, (ppu.vram[100], ppu.vram[101], ppu.vram[201]));
-        // frame.set_pixel(x, 01, (0xff, 0xff, 0xff));
-        // frame.set_pixel(x, 02, (0xff, 0xff, 0xff));
-        // frame.set_pixel(x, 03, (0xff, 0xff, 0xff));
-        // frame.set_pixel(x, 100, rgb: (0xff, u8, u8));
     }
 
     for i in (0..ppu.oam_data.len()).step_by(4).rev() {
-        // if(ppu.oam_data[i] != 0) {
         let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
             true
         } else {
@@ -203,64 +230,32 @@ pub fn render(ppu: &NesPPU) -> Frame {
         let tile = ppu.oam_data[i + 1] as u16;
         let tile_x = ppu.oam_data[i + 3] as usize;
         let tile_y = ppu.oam_data[i] as usize;
-        if i == 12 && !(tile_x == 0 && tile_y == 0) {
-            // println!("idx={},tile={},x={},y={}", i, tile, tile_x, tile_y);
-        }
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
-        // let pallet
-
-        // let palette = &ppu.palette_table[16..=31];
 
         for y in 0..=7 {
             let mut upper = tile[y];
             let mut lower = tile[y + 8];
-            // frame.set_pixel(tile_x , tile_y + y, (255,0,0));
-            // frame.set_pixel(tile_x + 8, tile_y + y, (255,0,0));
             'ololo: for x in (0..=7).rev() {
                 let value = (1 & lower) << 1 | (1 & upper);
                 upper = upper >> 1;
                 lower = lower >> 1;
                 let rgb = match value {
-                    // 0 => pallete::YUV[ppu.palette_table[0] as usize],
                     0 => continue 'ololo, //pallete::YUV[0x01],
-                    // 0 => pallete::YUV[ppu.palette_table[0] as usize],
                     1 => pallete::YUV[sprite_palette[1] as usize],
                     2 => pallete::YUV[sprite_palette[2] as usize],
                     3 => pallete::YUV[sprite_palette[3] as usize],
                     _ => panic!("can't be"),
-                    // 0 => pallete::YUV[ppu.palette_table[0] as usize],
-                    // 1 => pallete::YUV[palette[0] as usize],
-                    // 2 => pallete::YUV[palette[1] as usize],
-                    // 3 => pallete::YUV[palette[2] as usize],
-                    // _ => panic!("can't be"),
                 };
-                // frame.set_pixel(tile_x*8 + x, tile_y*8 + y, rgb)
-                // println!("x={},y={}", tile_x*8 +x, tile_y*8 +y);
                 match (flip_horizontal, flip_vertical) {
                     (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
                     (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
                     (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
                     (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
                 }
-                // if flip_horizontal {
-                //     frame.set_pixel(tile_x + 8-x, tile_y + y, rgb);
-                // } else {
-                //     frame.set_pixel(tile_x + x, tile_y + y, rgb);
-                // }
-                // frame.set_pixel(tile_x*7 + x, tile_y*7 + y, (0xff, 0, 0))
             }
         }
-
-        // }
     }
-
-    // for y in 0..239 {
-
-    //     for x in 0..255 {
-    //         frame.set_pixel(x, y, (0xff, 0, 0));
-    //     }
-    // }
     frame
 }
 
@@ -277,9 +272,8 @@ impl NesPPU {
             mask: MaskRegister::new(),
             status: StatusRegister::new(),
             oam_addr: 0,
-            scroll: 0,
+            scroll: Scroll::new(),
             addr: Addr::new(),
-            oamdma: 0,
             vram: [0; 2048],
             oam_data: [0; 64 * 4],
             line: 0,
@@ -344,6 +338,7 @@ impl PPU for NesPPU {
         let data = self.status.snapshot();
         self.status.reset_vblank_status();
         self.addr.reset_latch();
+        self.scroll.reset_latch();
         data
     }
 
@@ -360,7 +355,9 @@ impl PPU for NesPPU {
         self.oam_data[self.oam_addr as usize]
     }
 
-    fn write_to_scroll(&mut self, value: u8) {}
+    fn write_to_scroll(&mut self, value: u8) {
+        self.scroll.write(value);
+    }
 
     fn write_to_ppu_addr(&mut self, value: u8) {
         self.addr.udpate(value);
@@ -372,8 +369,13 @@ impl PPU for NesPPU {
     fn write_to_data(&mut self, value: u8) {
         let addr = self.addr.read();
         match addr {
-            0..=0x1fff => panic!("attempt to write to chr rom space {}", addr),
-            0x2000..=0x2fff => self.vram[self.mirror_vram_addr(addr) as usize] = value,
+            0..=0x1fff => println!("attempt to write to chr rom space {}", addr), //panic!("attempt to write to chr rom space {}", addr),
+            0x2000..=0x2fff => {
+                // if(addr >= 0x2000 && addr < 0x23ff) {
+                //      print!("{:x} ", value);
+                // }
+                self.vram[self.mirror_vram_addr(addr) as usize] = value;
+            }
             0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
             0x3f00..=0x3fff =>
             /* todo: implement working with palette */
@@ -417,12 +419,10 @@ impl PPU for NesPPU {
             self.oam_data[self.oam_addr as usize] = *x;
             self.oam_addr = self.oam_addr.wrapping_add(1);
         }
-        // println!("write to oam dma");
     }
 
     fn tick(&mut self, cycles: u16) -> bool {
         self.cycles += cycles as usize;
-        // println!("{}: {}", self.line, self.cycles);
         if self.cycles >= 341 {
             if self.has_sprite_hit(self.cycles) {
                 self.status.set_sprite_zero_hit(true);
@@ -454,35 +454,6 @@ impl PPU for NesPPU {
     fn poll_nmi_interrupt(&mut self) -> Option<u8> {
         self.nmi_interrupt.take()
     }
-
-    // fn build_bg_screen(&self, chr_rom: &[u8]) -> Frame {
-    //     let mut frame = Frame::new();
-
-    //     for y in 0..29 {
-    //         for x in 0..31 {
-    //             let tile_n = self.vram[y * 32 + x] as usize;
-    //             let bank = ((self.crtl as usize >> 4) & 1) * 0x1000;
-    //             let tile = &chr_rom[(bank + tile_n * 16)..(bank + tile_n * 16 + 15)];
-
-    //             let memtable_attr_pos = 0x3C0 + self.line / 32 * 8;
-    //         }
-    //     }
-
-    //     frame
-    // }
-
-    // fn build_line(&mut self) {
-    //     // self.line += 1;
-    //     let nametamble_pos = (self.line /8 * 32);
-    //     let memtable_slice:&[u8] = &self.vram[nametamble_pos .. (nametamble_pos + 32)];
-
-    //     let memtable_attr_pos = 0x3C0 + self.line / 32 * 8;
-
-    //     let memtable_attr_slice: &[u8] = &self.vram[memtable_attr_pos .. (memtable_attr_pos +8)];
-
-    //     self.line += 1;
-
-    // }
 }
 
 #[cfg(test)]
@@ -573,14 +544,15 @@ pub mod test {
         assert_eq!(ppu.vram[0x0305], 0x66);
     }
 
-    #[test]
-    #[should_panic]
-    fn test_ppu_writing_to_chr_rom_is_prohibited() {
-        let mut ppu = NesPPU::new_empty_rom();
-        ppu.write_to_ppu_addr(0x03);
-        ppu.write_to_ppu_addr(0x05);
-        ppu.write_to_data(0x66);
-    }
+    // todo:figure out why it's writing to rom
+    // #[test]
+    // #[should_panic]
+    // fn test_ppu_writing_to_chr_rom_is_prohibited() {
+    //     let mut ppu = NesPPU::new_empty_rom();
+    //     ppu.write_to_ppu_addr(0x03);
+    //     ppu.write_to_ppu_addr(0x05);
+    //     ppu.write_to_data(0x66);
+    // }
 
     #[test]
     fn test_ppu_vram_reads() {

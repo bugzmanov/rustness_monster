@@ -1,4 +1,5 @@
 use rustness::bus::bus::Bus;
+use rustness::cpu::mem::Mem;
 use rustness::cpu::cpu::CPU;
 use rustness::input;
 use rustness::ppu::ppu;
@@ -19,18 +20,19 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 fn main() {
-    let mut keyMap = HashMap::new();
-    keyMap.insert(Keycode::Down, input::JoypadButton::DOWN);
-    keyMap.insert(Keycode::Up, input::JoypadButton::UP);
-    keyMap.insert(Keycode::Right, input::JoypadButton::RIGHT);
-    keyMap.insert(Keycode::Left, input::JoypadButton::LEFT);
-    keyMap.insert(Keycode::Space, input::JoypadButton::SELECT);
-    keyMap.insert(Keycode::Return, input::JoypadButton::START);
-    keyMap.insert(Keycode::A, input::JoypadButton::BUTTON_A);
-    keyMap.insert(Keycode::S, input::JoypadButton::BUTTON_B);
+    let mut key_map = HashMap::new();
+    key_map.insert(Keycode::Down, input::JoypadButton::DOWN);
+    key_map.insert(Keycode::Up, input::JoypadButton::UP);
+    key_map.insert(Keycode::Right, input::JoypadButton::RIGHT);
+    key_map.insert(Keycode::Left, input::JoypadButton::LEFT);
+    key_map.insert(Keycode::Space, input::JoypadButton::SELECT);
+    key_map.insert(Keycode::Return, input::JoypadButton::START);
+    key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
+    key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     let mut file = File::open("test_rom/pacman.nes").unwrap();
+    // let mut file = File::open("test_rom/donkey_kong.nes").unwrap();
     // let mut file = File::open("test_rom/nestest.nes").unwrap();
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
@@ -40,7 +42,7 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("rust nes demo", 256 * 3, 240 * 3)
+        .window("rust nes demo", (256.0 * 1.5) as u32, (240.0 * 1.5) as u32)
         .position_centered()
         .build()
         .unwrap();
@@ -77,12 +79,12 @@ fn main() {
                 }
 
                 Event::KeyDown { keycode, .. } => {
-                    if let Some(key) = keyMap.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
                         joypad.set_button_pressed_status(*key, true);
                     }
                 }
                 Event::KeyUp { keycode, .. } => {
-                    if let Some(key) = keyMap.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
                         joypad.set_button_pressed_status(*key, false);
                     }
                 }
@@ -97,7 +99,7 @@ fn main() {
         canvas
             .copy(&texture, None, Some(Rect::new(0, 0, 256, 240)))
             .unwrap();
-        canvas.set_scale(3.0, 3.0).unwrap();
+        canvas.set_scale(1.5, 1.5).unwrap();
         canvas.present();
 
         let elapsed_time = SystemTime::now()
@@ -116,13 +118,12 @@ fn main() {
 
     let mut bus = Bus::<'_, NesPPU>::new(rom, func);
 
-    let pc = bus.read(0xfffc);
-    let ffd = bus.read(0xfffd);
-
+    let pc = Mem::read_u16(&mut bus, 0xfffc);
+    println!("pc:{}", pc);
     // let memory = Rc::from(RefCell::from(bus));
     // let mut mem_wraper = DynamicBusWrapper::new(memory);
     let mut cpu = CPU::new(Box::from(bus));
-    cpu.program_counter = 65280; //0x8000 as u16 + pc as u16;
+    cpu.program_counter = pc; //0x8000 as u16 + pc as u16;
                                  // cpu.program_counter = 0xC000; //0x8000 as u16 + pc as u16;
 
     let trace_rc2 = trace.clone();

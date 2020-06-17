@@ -13,6 +13,7 @@ const PRG_ROM_PAGE_SIZE: usize = 16384;
 const CHR_ROM_PAGE_SIZE: usize = 8192;
 const PRG_RAM_PAGE_SIZE: usize = 8192;
 
+#[derive(Debug)]
 pub enum Mirroring {
     VERTICAL,
     HORIZONTAL,
