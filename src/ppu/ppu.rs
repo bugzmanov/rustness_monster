@@ -170,8 +170,8 @@ pub fn render(ppu: &NesPPU) -> Frame {
     let scroll_x = (ppu.scroll.scroll_x ) as i32;
     let scroll_y = (ppu.scroll.scroll_y ) as i32;
 
-    println!("{} {}" ,scroll_x, scroll_y);
-    println!("{:x}", ppu.ctrl.nametable_addr());
+    // println!("{} {}" ,scroll_x, scroll_y);
+    // println!("{:x}", ppu.ctrl.nametable_addr());
     // for i in 0..0x3c0 {
     for i in 0..0x3c0 {
         
