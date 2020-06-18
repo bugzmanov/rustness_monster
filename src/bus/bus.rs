@@ -201,7 +201,7 @@ impl<'a, T: PPU> Bus<'a, T> {
             //     //ignore exapnsion rom for now
             // }
             _ => {
-                println!("attempting to read from {:x}", pos);
+                // println!("attempting to read from {:x}", pos);
                 0
 
                 // unimplemented!("attempting to read from {:x}", pos);

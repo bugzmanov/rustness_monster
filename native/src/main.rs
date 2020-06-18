@@ -30,8 +30,8 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-    // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
-    let mut file = File::open("test_rom/pacman.nes").unwrap();
+    let mut file = File::open("test_rom/ice_climber.nes").unwrap();
+    // let mut file = File::open("test_rom/pacman.nes").unwrap();
     // let mut file = File::open("test_rom/donkey_kong.nes").unwrap();
     // let mut file = File::open("test_rom/nestest.nes").unwrap();
     let mut data = Vec::new();

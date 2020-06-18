@@ -170,8 +170,8 @@ pub fn render(ppu: &NesPPU) -> Frame {
     let scroll_x = (ppu.scroll.scroll_x ) as i32;
     let scroll_y = (ppu.scroll.scroll_y ) as i32;
 
-    // println!("{} {}" ,scroll_x, scroll_y);
-    // println!("{:x}", ppu.ctrl.nametable_addr());
+    println!("{} {}" ,scroll_x, scroll_y);
+    println!("{:x}", ppu.ctrl.nametable_addr());
     // for i in 0..0x3c0 {
     for i in 0..0x3c0 {
         
@@ -186,8 +186,16 @@ pub fn render(ppu: &NesPPU) -> Frame {
          
   
         start += ppu.ctrl.nametable_addr();
-        if(start >= 0x2c00) {
-            start -= 0x800;
+
+
+        if(start >= 0x2c00 ) {
+            // println!("bom");
+            start -= (3*0x400);
+        }
+
+        let mut start2 = start;
+        if(start >= 0x2400 && start <= 0x27ff) {
+            start += (0x400);
         }
         // let mirror_i = ppu.mirror_vram_addr(i as u16) as usize; 
         let mirror_i = ppu.mirror_vram_addr(start as u16) as usize; 
@@ -195,13 +203,16 @@ pub fn render(ppu: &NesPPU) -> Frame {
         let tile = ppu.vram[mirror_i] as u16;
         
 
+        // println!("{} {}", i, mirror_i);
         let tile_x = i % 32 as usize;
         let tile_y = ((i / 32) as usize);
 
         // let test_tile_x = ((i as u16 +  ((scroll_x /8 *8 * 4) as u16)) % 32) as usize ;
 
         // let test_tile_y = ((i as u16 +  ((scroll_y /8 *8 * 4) as u16)) / 32) as usize ;
-        let test_tile_y = (mirror_i / 32) as usize ;
+        let mirror_i2 = ppu.mirror_vram_addr(start2 as u16) as usize; 
+
+        let test_tile_y = ((mirror_i2) / 32) as usize ;
 
         // println!("i: {} tile:{} delta:{}", i, tile_y, delta_y);
         // tile_y -= delta_y;
@@ -210,7 +221,7 @@ pub fn render(ppu: &NesPPU) -> Frame {
         // }
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
-        let palette = bg_pallette(ppu, start as u16, tile_x, test_tile_y);
+        let palette = bg_pallette(ppu, start2 as u16, tile_x, test_tile_y);
         let delta_y = (scroll_y % 8) as usize; 
         let delta_x = (scroll_x % 8) as usize; 
 
