@@ -130,7 +130,8 @@ fn main() {
     cpu.interpret_fn(0xffff, |cpu| {
         // ::std::thread::sleep(Duration::new(0, 50000));
         if *trace_rc2.borrow() {
-            println!("{}", rustness::cpu::trace(cpu));
+            ::std::thread::sleep(Duration::new(0, 10000));
+            // println!("{}", rustness::cpu::trace(cpu));
         }
     });
 }

@@ -138,7 +138,7 @@ fn bg_pallette(ppu: &NesPPU, tile_addr: u16, tile_x: usize, tile_y: usize) -> [u
         0x2400..=0x27FF => 0x27C0,
         0x2800..=0x2BFF => 0x2BC0,
         0x2C00..=0x2FFF => 0x2FC0,
-        // 0x3000..=0x3FFF => return bg_pallette(ppu, tile_addr & 0b10111111111111, tile_x, tile_y),
+        0x3000..=0x3FFF => return bg_pallette(ppu, tile_addr & 0b10111111111111, tile_x, tile_y),
         _ => panic!("unreachable addr {:x}", tile_addr),
     };
 
@@ -188,15 +188,22 @@ pub fn render(ppu: &NesPPU) -> Frame {
         start += ppu.ctrl.nametable_addr();
 
 
-        if(start >= 0x2c00 ) {
-            // println!("bom");
-            start -= (3*0x400);
-        }
+        if(start >= 0x3000) {
+            panic!("wtf");
+        }    
 
         let mut start2 = start;
-        if(start >= 0x2400 && start <= 0x27ff) {
+        if(start >= 0x2400 && start <= 0x27ff) { //second to 3rd
             start += (0x400);
+            start2 -= 0x400;
         }
+        if(start >= 0x2c00 ) { // fourth to 1st
+            start -= (3*0x400);
+            //start2 -= (3*0x400 - 0x200);
+            start2 -= (3*0x400);
+        }
+
+
         // let mirror_i = ppu.mirror_vram_addr(i as u16) as usize; 
         let mirror_i = ppu.mirror_vram_addr(start as u16) as usize; 
         // println!("{:x}={}", start, mirror_i);
@@ -210,8 +217,10 @@ pub fn render(ppu: &NesPPU) -> Frame {
         // let test_tile_x = ((i as u16 +  ((scroll_x /8 *8 * 4) as u16)) % 32) as usize ;
 
         // let test_tile_y = ((i as u16 +  ((scroll_y /8 *8 * 4) as u16)) / 32) as usize ;
+        // let mirror_i2 = ppu.mirror_vram_addr(start2 as u16) as usize; 
         let mirror_i2 = ppu.mirror_vram_addr(start2 as u16) as usize; 
 
+        let test_tile_x = ((mirror_i2) % 32) as usize ;
         let test_tile_y = ((mirror_i2) / 32) as usize ;
 
         // println!("i: {} tile:{} delta:{}", i, tile_y, delta_y);
@@ -221,7 +230,8 @@ pub fn render(ppu: &NesPPU) -> Frame {
         // }
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
-        let palette = bg_pallette(ppu, start2 as u16, tile_x, test_tile_y);
+        // let palette = bg_pallette(ppu, start as u16, test_tile_x, test_tile_y);
+        let palette = bg_pallette(ppu, start as u16, test_tile_x, test_tile_y);
         let delta_y = (scroll_y % 8) as usize; 
         let delta_x = (scroll_x % 8) as usize; 
 
