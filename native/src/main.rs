@@ -31,6 +31,7 @@ fn main() {
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
     let mut file = File::open("test_rom/ice_climber.nes").unwrap();
+    // let mut file = File::open("test_rom/balloon_fight.nes").unwrap();
     // let mut file = File::open("test_rom/pacman.nes").unwrap();
     // let mut file = File::open("test_rom/donkey_kong.nes").unwrap();
     // let mut file = File::open("test_rom/nestest.nes").unwrap();
@@ -42,10 +43,15 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("rust nes demo", (256.0 * 1.5) as u32, (240.0 * 1.5) as u32)
+        .window("rust nes demo", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
         .position_centered()
         .build()
         .unwrap();
+
+    let joystick_system = sdl_context.joystick().unwrap();
+    println!("{}",joystick_system.device_guid(0).unwrap());
+    let joystick = joystick_system.open(0).unwrap();
+    joystick_system.set_event_state(true);
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     canvas.present();
@@ -88,6 +94,50 @@ fn main() {
                         joypad.set_button_pressed_status(*key, false);
                     }
                 }
+                Event::JoyButtonDown { timestamp, which, button_idx}=> {
+                    match button_idx {
+                        1 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_A, true),
+                        2 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_B, true),
+                        9 => joypad.set_button_pressed_status(input::JoypadButton::START, true),
+                        8 =>joypad.set_button_pressed_status(input::JoypadButton::SELECT, true),
+                        _ => panic!("shouldn't happen"),
+                    }
+                    // println!("{}", button_idx);
+                }
+                Event::JoyButtonUp { timestamp, which, button_idx}=> {
+                    match button_idx {
+                        1 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_A, false),
+                        2 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_B, false),
+                        9 => joypad.set_button_pressed_status(input::JoypadButton::START, false),
+                        8 =>joypad.set_button_pressed_status(input::JoypadButton::SELECT, false),
+                        _ => panic!("shouldn't happen"),
+
+                    }
+                }
+                Event::JoyAxisMotion {timestamp,
+                    /// The joystick's `id`
+                    which,
+                    axis_idx,
+                    value} => {
+                        match (axis_idx,value) {
+                         (3, -32768) => joypad.set_button_pressed_status(input::JoypadButton::LEFT, true),
+                         (3, 32767) => joypad.set_button_pressed_status(input::JoypadButton::RIGHT, true),
+                         (4, -32768) => joypad.set_button_pressed_status(input::JoypadButton::UP, true),
+                         (4, 32767) =>joypad.set_button_pressed_status(input::JoypadButton::DOWN, true),
+                         (3, -129) => {
+                            joypad.set_button_pressed_status(input::JoypadButton::LEFT, false);
+                            joypad.set_button_pressed_status(input::JoypadButton::RIGHT, false);
+                         }
+                         (4, -129) => {
+                            joypad.set_button_pressed_status(input::JoypadButton::UP, false);
+                            joypad.set_button_pressed_status(input::JoypadButton::DOWN, false);
+                         }
+                        _ => {/* do nothing*/},
+
+                        }
+                        println!("{} {}", axis_idx, value);
+
+                    }
                 _ => {}
             }
         }
@@ -99,7 +149,7 @@ fn main() {
         canvas
             .copy(&texture, None, Some(Rect::new(0, 0, 256, 240)))
             .unwrap();
-        canvas.set_scale(1.5, 1.5).unwrap();
+        canvas.set_scale(3.0, 3.0).unwrap();
         canvas.present();
 
         let elapsed_time = SystemTime::now()
