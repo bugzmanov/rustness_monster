@@ -30,7 +30,11 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-    let mut file = File::open("test_rom/ice_climber.nes").unwrap();
+    let mut file = File::open("test_rom/excitebike.nes").unwrap();
+    // let mut file = File::open("test_rom/bomberman.nes").unwrap();
+    // let mut file = File::open("test_rom/battle_city.nes").unwrap();
+    // let mut file = File::open("test_rom/popeye.nes").unwrap();
+    // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     // let mut file = File::open("test_rom/balloon_fight.nes").unwrap();
     // let mut file = File::open("test_rom/pacman.nes").unwrap();
     // let mut file = File::open("test_rom/donkey_kong.nes").unwrap();
