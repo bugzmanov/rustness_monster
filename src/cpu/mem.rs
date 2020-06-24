@@ -95,7 +95,7 @@ impl AddressingMode {
         if let AddressingMode::Immediate = self {
             return cpu.mem_read(cpu.program_counter);
         }
-        
+
         let base = match self {
             AddressingMode::Absolute
             | AddressingMode::Absolute_X

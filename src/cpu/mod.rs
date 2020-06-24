@@ -65,11 +65,17 @@ pub fn trace(cpu: &mut CPU) -> String {
                 ),
                 AddressingMode::Indirect_X => format!(
                     "(${:02x},X) @ {:02x} = {:04x} = {:02x}",
-                    address, (address.wrapping_add(cpu.register_x)), mem_addr, stored_value
+                    address,
+                    (address.wrapping_add(cpu.register_x)),
+                    mem_addr,
+                    stored_value
                 ),
                 AddressingMode::Indirect_Y | AddressingMode::Indirect_Y_PageCross => format!(
                     "(${:02x}),Y = {:04x} @ {:04x} = {:02x}",
-                    address, (mem_addr.wrapping_sub(cpu.register_y as u16)), mem_addr, stored_value
+                    address,
+                    (mem_addr.wrapping_sub(cpu.register_y as u16)),
+                    mem_addr,
+                    stored_value
                 ),
                 AddressingMode::NoneAddressing => {
                     // assuming local jumps: BNE, BVS, etc.... todo: check ?

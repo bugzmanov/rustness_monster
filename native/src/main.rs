@@ -1,6 +1,6 @@
 use rustness::bus::bus::Bus;
-use rustness::cpu::mem::Mem;
 use rustness::cpu::cpu::CPU;
+use rustness::cpu::mem::Mem;
 use rustness::input;
 use rustness::ppu::ppu;
 use rustness::ppu::ppu::NesPPU;
@@ -30,9 +30,8 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-    let mut file = File::open("test_rom/mario.nes").unwrap();
+    let mut file = File::open("test_rom/super.ness").unwrap();
     // let mut file = File::open("test_rom/excitebike.nes").unwrap();
-    // let mut file = File::open("test_rom/bomberman.nes").unwrap();
     // let mut file = File::open("test_rom/battle_city.nes").unwrap();
     // let mut file = File::open("test_rom/popeye.nes").unwrap();
     // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
@@ -53,10 +52,12 @@ fn main() {
         .build()
         .unwrap();
 
-    // let joystick_system = sdl_context.joystick().unwrap();
-    // println!("{}",joystick_system.device_guid(0).unwrap());
-    // let joystick = joystick_system.open(0).unwrap();
-    // joystick_system.set_event_state(true);
+    let joystick_system = sdl_context.joystick().unwrap();
+    // println!("{}", joystick_system.device_guid(0).unwrap());
+    if joystick_system.num_joysticks().unwrap() > 0 {
+        let joystick = joystick_system.open(0).unwrap();
+        joystick_system.set_event_state(true);
+    }
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     canvas.present();
@@ -99,50 +100,63 @@ fn main() {
                         joypad.set_button_pressed_status(*key, false);
                     }
                 }
-                Event::JoyButtonDown { timestamp, which, button_idx}=> {
+                Event::JoyButtonDown {
+                    timestamp: _,
+                    which: _,
+                    button_idx,
+                } => {
                     match button_idx {
                         1 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_A, true),
                         2 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_B, true),
                         9 => joypad.set_button_pressed_status(input::JoypadButton::START, true),
-                        8 =>joypad.set_button_pressed_status(input::JoypadButton::SELECT, true),
+                        8 => joypad.set_button_pressed_status(input::JoypadButton::SELECT, true),
                         _ => panic!("shouldn't happen"),
                     }
                     // println!("{}", button_idx);
                 }
-                Event::JoyButtonUp { timestamp, which, button_idx}=> {
-                    match button_idx {
-                        1 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_A, false),
-                        2 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_B, false),
-                        9 => joypad.set_button_pressed_status(input::JoypadButton::START, false),
-                        8 =>joypad.set_button_pressed_status(input::JoypadButton::SELECT, false),
-                        _ => panic!("shouldn't happen"),
-
-                    }
-                }
-                Event::JoyAxisMotion {timestamp,
+                Event::JoyButtonUp {
+                    timestamp: _,
+                    which: _,
+                    button_idx,
+                } => match button_idx {
+                    1 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_A, false),
+                    2 => joypad.set_button_pressed_status(input::JoypadButton::BUTTON_B, false),
+                    9 => joypad.set_button_pressed_status(input::JoypadButton::START, false),
+                    8 => joypad.set_button_pressed_status(input::JoypadButton::SELECT, false),
+                    _ => panic!("shouldn't happen"),
+                },
+                Event::JoyAxisMotion {
+                    timestamp: _,
                     /// The joystick's `id`
-                    which,
+                    which: _,
                     axis_idx,
-                    value} => {
-                        match (axis_idx,value) {
-                         (3, -32768) => joypad.set_button_pressed_status(input::JoypadButton::LEFT, true),
-                         (3, 32767) => joypad.set_button_pressed_status(input::JoypadButton::RIGHT, true),
-                         (4, -32768) => joypad.set_button_pressed_status(input::JoypadButton::UP, true),
-                         (4, 32767) =>joypad.set_button_pressed_status(input::JoypadButton::DOWN, true),
-                         (3, -129) => {
+                    value,
+                } => {
+                    match (axis_idx, value) {
+                        (3, -32768) => {
+                            joypad.set_button_pressed_status(input::JoypadButton::LEFT, true)
+                        }
+                        (3, 32767) => {
+                            joypad.set_button_pressed_status(input::JoypadButton::RIGHT, true)
+                        }
+                        (4, -32768) => {
+                            joypad.set_button_pressed_status(input::JoypadButton::UP, true)
+                        }
+                        (4, 32767) => {
+                            joypad.set_button_pressed_status(input::JoypadButton::DOWN, true)
+                        }
+                        (3, -129) => {
                             joypad.set_button_pressed_status(input::JoypadButton::LEFT, false);
                             joypad.set_button_pressed_status(input::JoypadButton::RIGHT, false);
-                         }
-                         (4, -129) => {
+                        }
+                        (4, -129) => {
                             joypad.set_button_pressed_status(input::JoypadButton::UP, false);
                             joypad.set_button_pressed_status(input::JoypadButton::DOWN, false);
-                         }
-                        _ => {/* do nothing*/},
-
                         }
-                        println!("{} {}", axis_idx, value);
-
+                        _ => { /* do nothing*/ }
                     }
+                    println!("{} {}", axis_idx, value);
+                }
                 _ => {}
             }
         }
@@ -174,19 +188,14 @@ fn main() {
     let mut bus = Bus::<'_, NesPPU>::new(rom, func);
 
     let pc = Mem::read_u16(&mut bus, 0xfffc);
-    println!("pc:{}", pc);
-    // let memory = Rc::from(RefCell::from(bus));
-    // let mut mem_wraper = DynamicBusWrapper::new(memory);
+    println!("ROM Start address: {}", pc);
     let mut cpu = CPU::new(Box::from(bus));
-    cpu.program_counter = pc; //0x8000 as u16 + pc as u16;
-                                 // cpu.program_counter = 0xC000; //0x8000 as u16 + pc as u16;
+    cpu.program_counter = pc;
 
     let trace_rc2 = trace.clone();
     cpu.interpret_fn(0xffff, |cpu| {
-        // ::std::thread::sleep(Duration::new(0, 50000));
         if *trace_rc2.borrow() {
-            ::std::thread::sleep(Duration::new(0, 10000));
-            // println!("{}", rustness::cpu::trace(cpu));
+            println!("{}", rustness::cpu::trace(cpu));
         }
     });
 }

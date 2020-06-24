@@ -72,16 +72,15 @@ impl Addr {
 struct Scroll {
     pub scroll_x: u8,
     pub scroll_y: u8,
-    latch: bool
+    latch: bool,
 }
 
 impl Scroll {
-
     fn new() -> Self {
         Scroll {
             scroll_x: 0,
             scroll_y: 0,
-            latch: false
+            latch: false,
         }
     }
 
@@ -144,7 +143,7 @@ fn bg_pallette(ppu: &NesPPU, tile_addr: u16, tile_x: usize, tile_y: usize) -> [u
 
     // println!("x:{},y:{}, start:{:x} pos:{:x}", tile_x, tile_y, tile_addr, pos);
     let vram_idx = ppu.mirror_vram_addr((pos + attr_table_idx) as u16) as usize;
-    let attr_byte = ppu.vram[vram_idx ];
+    let attr_byte = ppu.vram[vram_idx];
 
     let pallet_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
         (0, 0) => attr_byte & 0b11,
@@ -163,58 +162,58 @@ fn bg_pallette(ppu: &NesPPU, tile_addr: u16, tile_x: usize, tile_y: usize) -> [u
     ]
 }
 
-
 pub fn render(ppu: &NesPPU) -> Frame {
     let mut frame = Frame::new();
     let bank = ppu.ctrl.bknd_pattern_addr();
-    let scroll_x = (ppu.scroll.scroll_x ) as i32;
-    let scroll_y = (ppu.scroll.scroll_y ) as i32;
+    let scroll_x = (ppu.scroll.scroll_x) as i32;
+    let scroll_y = (ppu.scroll.scroll_y) as i32;
 
     // println!("{} {}" ,scroll_x, scroll_y);
     // println!("{:x}", ppu.ctrl.nametable_addr());
     // for i in 0..0x3c0 {
     for i in 0..0x3c0 {
-        
         let mut start = i as u16; //(offset_x as u16)+ ((offset_y * 4) as u16);
-        // if offset_y % 8 == 0 {
-            start += ((scroll_x /8 *8 * 4) as u16);
-            start += ((scroll_y /8 *8 * 4) as u16);
-            if start >= 0x3c0 {
-                start += 64; //skip attribute table
-            }
+                                  // if offset_y % 8 == 0 {
+        start += ((scroll_x / 8 * 8 * 4) as u16);
+        start += ((scroll_y / 8 * 8 * 4) as u16);
+        if start >= 0x3c0 {
+            start += 64; //skip attribute table
+        }
         // }
-  
+
         start += ppu.ctrl.nametable_addr();
 
         let mut start2 = start;
-        if start >= 0x2400 && start <= 0x27ff { //second to 3rd
+        if start >= 0x2400 && start <= 0x27ff {
+            //second to 3rd
             start += 0x400;
             start2 -= 0x400;
         }
-        if start >= 0x2c00  { // fourth to 1st
-            start -= 3*0x400;
-            start2 -= 3*0x400;
+        if start >= 0x2c00 {
+            // fourth to 1st
+            start -= 3 * 0x400;
+            start2 -= 3 * 0x400;
         }
 
-        if ppu.ctrl.nametable_addr() == 0x2800 && start >= 0x2800 && start <=0x2BFF {
+        if ppu.ctrl.nametable_addr() == 0x2800 && start >= 0x2800 && start <= 0x2BFF {
             start2 -= 0x400;
         }
 
-        let mirror_i = ppu.mirror_vram_addr(start as u16) as usize; 
+        let mirror_i = ppu.mirror_vram_addr(start as u16) as usize;
         let tile = ppu.vram[mirror_i] as u16;
-        
+
         let tile_x = i % 32 as usize;
         let tile_y = i / 32 as usize;
 
-        let mirror_i2 = ppu.mirror_vram_addr(start2 as u16) as usize; 
-        let test_tile_x = ((mirror_i2) % 32) as usize ;
-        let test_tile_y = ((mirror_i2) / 32) as usize ;
+        let mirror_i2 = ppu.mirror_vram_addr(start2 as u16) as usize;
+        let test_tile_x = ((mirror_i2) % 32) as usize;
+        let test_tile_y = ((mirror_i2) / 32) as usize;
 
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
         let palette = bg_pallette(ppu, start as u16, test_tile_x, test_tile_y);
-        let delta_y = (scroll_y % 8) as usize; 
-        let delta_x = (scroll_x % 8) as usize; 
+        let delta_y = (scroll_y % 8) as usize;
+        let delta_x = (scroll_x % 8) as usize;
 
         for y in 0..=7 {
             let mut upper = tile[y];
@@ -233,7 +232,7 @@ pub fn render(ppu: &NesPPU) -> Frame {
                 };
                 let pixel_x = (tile_x * 8 + x).saturating_sub(delta_x);
                 let pixel_y = (tile_y * 8 + y).saturating_sub(delta_y);
-                frame.set_pixel((pixel_x as i32 ) as usize, (pixel_y as i32 ) as usize, rgb)
+                frame.set_pixel((pixel_x as i32) as usize, (pixel_y as i32) as usize, rgb)
             }
         }
     }
@@ -256,7 +255,6 @@ pub fn render(ppu: &NesPPU) -> Frame {
         let tile_x = ppu.oam_data[i + 3] as usize;
         let tile_y = ppu.oam_data[i] as usize;
         let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
-
 
         for y in 0..=7 {
             let mut upper = tile[y];
@@ -292,7 +290,7 @@ impl NesPPU {
     pub fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
         NesPPU {
             chr_rom: chr_rom,
-            mirroring: Mirroring::HORIZONTAL,//mirroring,
+            mirroring: Mirroring::HORIZONTAL, //mirroring,
             ctrl: ControlRegister::new(),
             mask: MaskRegister::new(),
             status: StatusRegister::new(),
