@@ -174,14 +174,14 @@ pub fn render(ppu: &NesPPU) -> Frame {
     for i in 0..0x3c0 {
         let mut start = i as u16; //(offset_x as u16)+ ((offset_y * 4) as u16);
                                   // if offset_y % 8 == 0 {
-        start += ((scroll_x) as u16);
+        // start += ((scroll_x/8*8) as u16);
         start += ((scroll_y / 8 * 8 * 4) as u16);
-        if start >= 0x3c0 {
-            // start += 64; //skip attribute table
-        }
+        // if start >= 0x3c0 {
+        //     start += 64; //skip attribute table
+        // }
         // }
 
-        start += ppu.ctrl.nametable_addr();
+        // start += ppu.ctrl.nametable_addr();
 
         let mut start2 = start;
 
@@ -204,14 +204,23 @@ pub fn render(ppu: &NesPPU) -> Frame {
             }
         } else {
             // println!("here");
-            if((i%32 as usize + (ppu.scroll.scroll_x %32) as usize) > 31) {
+            if((i%32 as usize + (ppu.scroll.scroll_x/8) as usize) > 31) {
                 // println!("+ {} - {}", start, (start + 0x400 - ppu.scroll.scroll_x as u16));
                 start += 0x400;
                 start -= 32;
                 // start -= ppu.scroll.scroll_x as u16;
                 // start -= i as u16 %32 as u16;
                 // start += i as u16;
+            } 
+                        start += ((scroll_x/8) as u16);
+
+            // }
+
+            if start >= 0x3c0 && start < 0x3c0+ 64 {
+                start += 64; //skip attribute table
             }
+            start += ppu.ctrl.nametable_addr();
+
             // if start >= 0x2800 && start <= 0x2BFF {
             //     //second to 3rd
             //     // start -= 3 * 0x400;
@@ -222,8 +231,12 @@ pub fn render(ppu: &NesPPU) -> Frame {
             
         }
 
+        start2 = start;
+        if(start2 -  ppu.ctrl.nametable_addr() >= 1024) {
+            start2 -= 0x400;
+        }
         let mirror_i = ppu.mirror_vram_addr(start as u16) as usize;
-        // println!("{}: {} - {} ({})", ppu.scroll.scroll_x, i, mirror_i, start);
+        // println!("{}: {} - {} ({})", ppu.scroll.scroll_x, i, mirror_i, (start - ppu.ctrl.nametable_addr()));
         let tile = ppu.vram[mirror_i] as u16;
 
         let tile_x = i % 32 as usize;
