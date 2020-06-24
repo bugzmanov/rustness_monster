@@ -147,7 +147,7 @@ impl<'a, T: PPU> Bus<'a, T> {
             }
 
             0x4017 => {
-                self.joypad2.write(data);
+                // self.joypad2.write(data);
             }
 
             PRG_ROM..=PRG_ROM_END => {
@@ -191,7 +191,7 @@ impl<'a, T: PPU> Bus<'a, T> {
 
             0x4016 => self.joypad1.read(),
 
-            0x4017 => self.joypad2.read(),
+            0x4017 => 0,//self.joypad2.read(),
 
             //todo 0x4000 - 0x8000
             PRG_ROM..=PRG_ROM_END => self.read_prg_rom(pos),
