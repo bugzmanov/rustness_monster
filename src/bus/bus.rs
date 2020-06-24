@@ -258,8 +258,10 @@ impl CpuBus for Bus<'_, NesPPU> {
     }
 
     fn tick(&mut self, cycles: u8) {
+        let nmi_before = self.nmi_interrupt.is_some();
         let render = Bus::<NesPPU>::tick(self, cycles as u16);
-        if render {
+        let nmi_after = self.nmi_interrupt.is_some();
+        if !nmi_before && nmi_after {
             (self.interrupt_fn)(&self.ppu, &mut self.joypad1);
         }
     }

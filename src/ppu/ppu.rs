@@ -168,38 +168,62 @@ pub fn render(ppu: &NesPPU) -> Frame {
     let scroll_x = (ppu.scroll.scroll_x) as i32;
     let scroll_y = (ppu.scroll.scroll_y) as i32;
 
-    // println!("{} {}" ,scroll_x, scroll_y);
-    // println!("{:x}", ppu.ctrl.nametable_addr());
+    println!("{} {}" ,scroll_x, scroll_y);
+    println!("{:x}", ppu.ctrl.nametable_addr());
     // for i in 0..0x3c0 {
     for i in 0..0x3c0 {
         let mut start = i as u16; //(offset_x as u16)+ ((offset_y * 4) as u16);
                                   // if offset_y % 8 == 0 {
-        start += ((scroll_x / 8 * 8 * 4) as u16);
+        start += ((scroll_x) as u16);
         start += ((scroll_y / 8 * 8 * 4) as u16);
         if start >= 0x3c0 {
-            start += 64; //skip attribute table
+            // start += 64; //skip attribute table
         }
         // }
 
         start += ppu.ctrl.nametable_addr();
 
         let mut start2 = start;
-        if start >= 0x2400 && start <= 0x27ff {
-            //second to 3rd
-            start += 0x400;
-            start2 -= 0x400;
-        }
-        if start >= 0x2c00 {
-            // fourth to 1st
-            start -= 3 * 0x400;
-            start2 -= 3 * 0x400;
-        }
 
-        if ppu.ctrl.nametable_addr() == 0x2800 && start >= 0x2800 && start <= 0x2BFF {
-            start2 -= 0x400;
+
+        //vertical scroll
+        if let Mirroring::HORIZONTAL = ppu.mirroring {
+            if start >= 0x2400 && start <= 0x27ff {
+                //second to 3rd
+                start += 0x400;
+                start2 -= 0x400;
+            }
+            if start >= 0x2c00 {
+                // fourth to 1st
+                start -= 3 * 0x400;
+                start2 -= 3 * 0x400;
+            }
+
+            if ppu.ctrl.nametable_addr() == 0x2800 && start >= 0x2800 && start <= 0x2BFF {
+                start2 -= 0x400;
+            }
+        } else {
+            // println!("here");
+            if((i%32 as usize + (ppu.scroll.scroll_x %32) as usize) > 31) {
+                // println!("+ {} - {}", start, (start + 0x400 - ppu.scroll.scroll_x as u16));
+                start += 0x400;
+                start -= 32;
+                // start -= ppu.scroll.scroll_x as u16;
+                // start -= i as u16 %32 as u16;
+                // start += i as u16;
+            }
+            // if start >= 0x2800 && start <= 0x2BFF {
+            //     //second to 3rd
+            //     // start -= 3 * 0x400;
+            //     // start2 -= 
+            //     // start2 -= 0x400;
+            // }
+
+            
         }
 
         let mirror_i = ppu.mirror_vram_addr(start as u16) as usize;
+        // println!("{}: {} - {} ({})", ppu.scroll.scroll_x, i, mirror_i, start);
         let tile = ppu.vram[mirror_i] as u16;
 
         let tile_x = i % 32 as usize;
@@ -213,7 +237,7 @@ pub fn render(ppu: &NesPPU) -> Frame {
 
         let palette = bg_pallette(ppu, start as u16, test_tile_x, test_tile_y);
         let delta_y = (scroll_y % 8) as usize;
-        let delta_x = (scroll_x % 8) as usize;
+        let delta_x = 0;//(scroll_x % 8) as usize;
 
         for y in 0..=7 {
             let mut upper = tile[y];
@@ -290,7 +314,7 @@ impl NesPPU {
     pub fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
         NesPPU {
             chr_rom: chr_rom,
-            mirroring: Mirroring::HORIZONTAL, //mirroring,
+            mirroring: mirroring,
             ctrl: ControlRegister::new(),
             mask: MaskRegister::new(),
             status: StatusRegister::new(),
