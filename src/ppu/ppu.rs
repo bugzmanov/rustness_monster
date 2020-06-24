@@ -396,12 +396,15 @@ impl PPU for NesPPU {
         match addr {
             0..=0x1fff => println!("attempt to write to chr rom space {}", addr), //panic!("attempt to write to chr rom space {}", addr),
             0x2000..=0x2fff => {
-                // if(addr >= 0x2000 && addr < 0x23ff) {
-                //      print!("{:x} ", value);
-                // }
                 self.vram[self.mirror_vram_addr(addr) as usize] = value;
             }
             0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
+
+            //Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                let add_mirror = addr - 0x10;
+                self.palette_table[(add_mirror - 0x3f00) as usize] = value;
+            }
             0x3f00..=0x3fff =>
             /* todo: implement working with palette */
             {
@@ -429,10 +432,16 @@ impl PPU for NesPPU {
                 result
             }
             0x3000..=0x3eff => unimplemented!("addr {} shouldn't be used in reallity", addr),
+
+            //Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                let add_mirror = addr - 0x10;
+                self.palette_table[(add_mirror - 0x3f00) as usize]
+            }
+
             0x3f00..=0x3fff =>
             /* todo: implement working with palette */
             {
-                println!("read palette");
                 self.palette_table[(addr - 0x3f00) as usize]
             }
             _ => panic!("unexpected access to mirrored space {}", addr),

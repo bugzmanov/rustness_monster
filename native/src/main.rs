@@ -30,7 +30,8 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-    let mut file = File::open("test_rom/excitebike.nes").unwrap();
+    let mut file = File::open("test_rom/mario.nes").unwrap();
+    // let mut file = File::open("test_rom/excitebike.nes").unwrap();
     // let mut file = File::open("test_rom/bomberman.nes").unwrap();
     // let mut file = File::open("test_rom/battle_city.nes").unwrap();
     // let mut file = File::open("test_rom/popeye.nes").unwrap();
@@ -52,10 +53,10 @@ fn main() {
         .build()
         .unwrap();
 
-    let joystick_system = sdl_context.joystick().unwrap();
-    println!("{}",joystick_system.device_guid(0).unwrap());
-    let joystick = joystick_system.open(0).unwrap();
-    joystick_system.set_event_state(true);
+    // let joystick_system = sdl_context.joystick().unwrap();
+    // println!("{}",joystick_system.device_guid(0).unwrap());
+    // let joystick = joystick_system.open(0).unwrap();
+    // joystick_system.set_event_state(true);
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     canvas.present();
