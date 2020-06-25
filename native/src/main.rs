@@ -31,8 +31,8 @@ fn main() {
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
 
-    // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
-    let mut file = File::open("test_rom/super.ness").unwrap();
+    let mut file = File::open("test_rom/ice_climber.nes").unwrap();
+    // let mut file = File::open("test_rom/super.ness").unwrap();
     // let mut file = File::open("test_rom/excitebike.nes").unwrap();
     // let mut file = File::open("test_rom/battle_city.nes").unwrap();
     // let mut file = File::open("test_rom/popeye.nes").unwrap();
