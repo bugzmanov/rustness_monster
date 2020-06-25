@@ -4,28 +4,26 @@ use crate::ppu::registers::control::ControlRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::status::StatusRegister;
 use crate::rom::ines::Mirroring;
-use crate::screen::frame::Frame;
-use crate::screen::pallete;
 
 pub struct NesPPU {
-    chr_rom: Vec<u8>,
-    mirroring: Mirroring,
-    ctrl: ControlRegister,
-    mask: MaskRegister,
-    status: StatusRegister,
-    oam_addr: u8,
-    scroll: Scroll,
-    addr: Addr,
-    vram: [u8; 2048],
-    oam_data: [u8; 256],
+    pub chr_rom: Vec<u8>,
+    pub mirroring: Mirroring,
+    pub ctrl: ControlRegister,
+    pub mask: MaskRegister,
+    pub status: StatusRegister,
+    pub oam_addr: u8,
+    pub scroll: Scroll,
+    pub addr: Addr,
+    pub vram: [u8; 2048],
+    pub oam_data: [u8; 256],
     pub line: usize,
     pub cycles: usize,
     nmi_interrupt: Option<u8>,
-    palette_table: [u8; 32],
+    pub palette_table: [u8; 32],
     read_data_buf: u8,
 }
 
-struct Addr {
+pub struct Addr {
     value: (u8, u8),
     hi_ptr: bool,
 }
@@ -69,7 +67,7 @@ impl Addr {
     }
 }
 
-struct Scroll {
+pub struct Scroll {
     pub scroll_x: u8,
     pub scroll_y: u8,
     latch: bool,
@@ -114,245 +112,6 @@ pub trait PPU {
     fn poll_nmi_interrupt(&mut self) -> Option<u8>;
 }
 
-pub trait Renderer {
-    fn render(ppu: &NesPPU) -> Frame;
-}
-
-// https://wiki.nesdev.com/w/index.php/PPU_attribute_tables
-fn sprite_palette(ppu: &NesPPU, pallete_idx: u8) -> [u8; 4] {
-    let start = 0x11 + (pallete_idx * 4) as usize;
-    [
-        0,
-        ppu.palette_table[start],
-        ppu.palette_table[start + 1],
-        ppu.palette_table[start + 2],
-    ]
-}
-
-fn bg_pallette(ppu: &NesPPU, tile_addr: u16, tile_x: usize, tile_y: usize) -> [u8; 4] {
-    let attr_table_idx = tile_y / 4 * 8 + tile_x / 4;
-
-    let pos = match tile_addr {
-        0x2000..=0x23FF => 0x23C0,
-        0x2400..=0x27FF => 0x27C0,
-        0x2800..=0x2BFF => 0x2BC0,
-        0x2C00..=0x2FFF => 0x2FC0,
-        0x3000..=0x3FFF => return bg_pallette(ppu, tile_addr & 0b10111111111111, tile_x, tile_y),
-        _ => panic!("unreachable addr {:x}", tile_addr),
-    };
-
-    // println!("x:{},y:{}, start:{:x} pos:{:x}", tile_x, tile_y, tile_addr, pos);
-    let vram_idx = ppu.mirror_vram_addr((pos + attr_table_idx) as u16) as usize;
-    let attr_byte = ppu.vram[vram_idx];
-
-    let pallet_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
-        (0, 0) => attr_byte & 0b11,
-        (1, 0) => (attr_byte >> 2) & 0b11,
-        (0, 1) => (attr_byte >> 4) & 0b11,
-        (1, 1) => (attr_byte >> 6) & 0b11,
-        (_, _) => panic!("should not happen"),
-    };
-
-    let pallete_start: usize = 1 + (pallet_idx as usize) * 4;
-    [
-        ppu.palette_table[0],
-        ppu.palette_table[pallete_start],
-        ppu.palette_table[pallete_start + 1],
-        ppu.palette_table[pallete_start + 2],
-    ]
-}
-
-pub fn render(ppu: &NesPPU) -> Frame {
-    let mut frame = Frame::new();
-    let bank = ppu.ctrl.bknd_pattern_addr() as usize;
-    let scroll_x = (ppu.scroll.scroll_x) as i32;
-    let scroll_y = (ppu.scroll.scroll_y) as i32;
-
-    println!("{} {}" ,scroll_x, scroll_y);
-    println!("{:x}", ppu.ctrl.nametable_addr());
-    // for i in 0..0x3c0 {
-
-    // for y in 0..240 {
-    //     for x in 0..255 {
-    //         let tile = y / 8 * 32 + x / 8;
-    //         let tile_x = tile % 32 as usize;
-    //         let tile_y = tile / 32 as usize;
-
-    //         let tile = &ppu.chr_rom[(bank + tile * 16) ..=(bank + tile * 16 + 15)];
-    //         let palette = bg_pallette(ppu, ppu.ctrl.nametable_addr() as u16, tile_x, tile_y);
-
-
-    //     }
-    // }
-
-
-    for i in 0..(0x3c0) {
-        let mut start = i as u16; //(offset_x as u16)+ ((offset_y * 4) as u16);
-                                  // if offset_y % 8 == 0 {
-        // start += ((scroll_x/8*8) as u16);
-        // start += ((scroll_y / 8 * 8 * 4) as u16);
-        // if start >= 0x3c0 {
-        //     start += 64; //skip attribute table
-        // }
-        // }
-
-        // start += ppu.ctrl.nametable_addr();
-
-
-        let mut start2 = 0;
-        //vertical scroll
-        if let Mirroring::HORIZONTAL = ppu.mirroring {
-
-            start += ((scroll_y / 8 * 8 * 4) as u16);
-            if start >= 0x3c0 {
-                start += 64; //skip attribute table
-            }
-            start += ppu.ctrl.nametable_addr();
-            
-            start2 = start;
-
-            if start >= 0x2400 && start <= 0x27ff {
-                //second to 3rd
-                start += 0x400;
-                start2 -= 0x400;
-            }
-            if start >= 0x2c00 {
-                // fourth to 1st
-                start -= 3 * 0x400;
-                start2 -= 3 * 0x400;
-            }
-
-            if ppu.ctrl.nametable_addr() == 0x2800 && start >= 0x2800 && start <= 0x2BFF {
-                start2 -= 0x400;
-            }
-        } else {
-            // println!("here");
-            if((i%32 as usize + (ppu.scroll.scroll_x/8) as usize) > 31) {
-                start += 0x400;
-                start -= 32;
-            } 
-            start += ((scroll_x/8) as u16);
-
-
-            if start >= 0x3c0 && start < 0x3c0+ 64 {
-                start += 64; //skip attribute table
-            }
-            start += ppu.ctrl.nametable_addr();
-
-            start2 = start;
-
-            // if(ppu.ctrl.nametable_addr() == 0x2400) {
-            //         start2 -= 0x400;
-            //     } 
-            if(start2 >=  ppu.ctrl.nametable_addr() +1024) {
-                // println!("here");
-                if(ppu.ctrl.nametable_addr() == 0x2000) {
-                    start2 -= 0x400;
-                } else {
-                    start2 -= 0x800;
-                }
-            } else {
-                if(ppu.ctrl.nametable_addr() == 0x2400) {
-                    start2 -= 0x400;
-                } 
-            }
-                
-        }
-
-        let mirror_i = ppu.mirror_vram_addr(start as u16) as usize;
-        // println!("{}: {} - {} ({})", ppu.scroll.scroll_x, i, mirror_i, (start - ppu.ctrl.nametable_addr()));
-        let tile = ppu.vram[mirror_i] as usize;
-
-        let tile_x = i % 32 as usize;
-        let tile_y = i / 32 as usize;
-
-        let mirror_i2 = ppu.mirror_vram_addr(start2 as u16) as usize;
-        let test_tile_x = ((mirror_i2) % 32) as usize;
-        let test_tile_y = ((mirror_i2) / 32) as usize;
-
-        let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
-
-        let palette = bg_pallette(ppu, start as u16, test_tile_x, test_tile_y);
-        let delta_y = (scroll_y % 8) as usize;
-        let delta_x = (scroll_x % 8) as usize;
-
-        for y in 0..=7 {
-            let mut upper = tile[y];
-            let mut lower = tile[y + 8];
-
-            for x in (0..=7).rev() {
-                let value = (1 & lower) << 1 | (1 & upper);
-                upper = upper >> 1;
-                lower = lower >> 1;
-                let rgb = match value {
-                    0 => pallete::YUV[ppu.palette_table[0] as usize],
-                    1 => pallete::YUV[palette[1] as usize],
-                    2 => pallete::YUV[palette[2] as usize],
-                    3 => pallete::YUV[palette[3] as usize],
-                    _ => panic!("can't be"),
-                };
-                let pixel_x = (tile_x * 8 + x).saturating_sub(delta_x);
-                let pixel_y = (tile_y * 8 + y).saturating_sub(delta_y);
-                if(pixel_x < 256 && pixel_y < 240) {
-                    frame.set_pixel((pixel_x as i32) as usize, (pixel_y as i32) as usize, rgb)
-                }
-            }
-        }
-    }
-
-
-    // if(scroll_x % 8 != 0) {
-    //     for tile_y in 0..30 {
-
-    //     }    
-    // }
-
-
-    for i in (0..ppu.oam_data.len()).step_by(4).rev() {
-        let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
-            true
-        } else {
-            false
-        };
-        let flip_horizontal = if ppu.oam_data[i + 2] >> 6 & 1 == 1 {
-            true
-        } else {
-            false
-        };
-        let pallette_idx = ppu.oam_data[i + 2] & 0b11;
-        let sprite_palette = sprite_palette(ppu, pallette_idx);
-        let bank: u16 = ppu.ctrl.sprt_pattern_addr();
-        let tile = ppu.oam_data[i + 1] as u16;
-        let tile_x = ppu.oam_data[i + 3] as usize;
-        let tile_y = ppu.oam_data[i] as usize;
-        let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
-
-        for y in 0..=7 {
-            let mut upper = tile[y];
-            let mut lower = tile[y + 8];
-            'ololo: for x in (0..=7).rev() {
-                let value = (1 & lower) << 1 | (1 & upper);
-                upper = upper >> 1;
-                lower = lower >> 1;
-                let rgb = match value {
-                    0 => continue 'ololo, //pallete::YUV[0x01],
-                    1 => pallete::YUV[sprite_palette[1] as usize],
-                    2 => pallete::YUV[sprite_palette[2] as usize],
-                    3 => pallete::YUV[sprite_palette[3] as usize],
-                    _ => panic!("can't be"),
-                };
-                match (flip_horizontal, flip_vertical) {
-                    (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
-                    (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
-                    (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
-                    (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
-                }
-            }
-        }
-    }
-    frame
-}
-
 impl NesPPU {
     pub fn new_empty_rom() -> Self {
         NesPPU::new(vec![0; 2048], Mirroring::HORIZONTAL)
@@ -385,7 +144,7 @@ impl NesPPU {
     // Vertical:
     //   [ A ] [ B ]
     //   [ a ] [ b ]
-    fn mirror_vram_addr(&self, addr: u16) -> u16 {
+    pub fn mirror_vram_addr(&self, addr: u16) -> u16 {
         let mirrored_vram = addr & 0b10111111111111; // mirror down 0x3000-0x3eff to 0x2000 - 0x2eff
         let vram_index = mirrored_vram - 0x2000; // to vram vector
         let name_table = vram_index / 0x400;
@@ -574,7 +333,6 @@ pub mod test {
         pub vram: [u8; 2048],
         pub oam: [u8; 64 * 4],
         pub ticks: usize,
-        line: usize,
     }
 
     impl PPU for MockPPU {
@@ -633,7 +391,6 @@ pub mod test {
             vram: [0; 2048],
             oam: [0; 64 * 4],
             ticks: 0,
-            line: 0,
         }
     }
 

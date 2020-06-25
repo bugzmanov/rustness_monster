@@ -33,8 +33,10 @@ bitflags! {
     }
 }
 
+#[allow(dead_code)]
 const ZERO_PAGE: u16 = 0x0;
 const STACK: u16 = 0x0100;
+#[allow(dead_code)]
 const STACK_SIZE: u8 = 0xff;
 
 const STACK_RESET: u8 = 0xfd;
@@ -43,7 +45,7 @@ mod interrupt {
     #[derive(PartialEq, Eq)]
     pub enum InterruptType {
         BRK,
-        IRQ,
+        IRQ, //todo: will be needed for APU
         NMI,
     }
 
@@ -62,6 +64,8 @@ mod interrupt {
         cpu_cycles: 1,
     };
 
+    #[allow(dead_code)]
+    //todo: will be needed for APU
     pub(super) const IRQ: Interrupt = Interrupt {
         itype: InterruptType::IRQ,
         vector_addr: 0xfffe,
@@ -84,7 +88,7 @@ pub struct CPU<'a> {
     pub(super) stack_pointer: u8,
     pub program_counter: u16,
     pub(super) flags: CpuFlags,
-    pub bus: Box<CpuBus + 'a>,
+    pub bus: Box<dyn CpuBus + 'a>,
 }
 
 impl<'a> CPU<'a> {
@@ -233,10 +237,6 @@ impl<'a> CPU<'a> {
 
     pub(super) fn mem_write(&mut self, pos: u16, data: u8) {
         self.bus.write(pos, data);
-    }
-
-    pub(super) fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        self.bus.write_u16(pos, data);
     }
 
     fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
@@ -946,7 +946,7 @@ impl<'a> CPU<'a> {
         }
     }
 
-    pub fn new<'b>(bus: Box<CpuBus + 'b>) -> CPU<'b> {
+    pub fn new<'b>(bus: Box<dyn CpuBus + 'b>) -> CPU<'b> {
         return CPU {
             register_a: 0,
             register_x: 0,

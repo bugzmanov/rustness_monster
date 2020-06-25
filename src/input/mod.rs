@@ -59,7 +59,7 @@ mod test {
         let mut joypad = Joypad::new();
         joypad.write(1);
         joypad.set_button_pressed_status(JoypadButton::RIGHT, true);
-        for x in 0..10 {
+        for _x in 0..10 {
             assert_eq!(joypad.read(), 1);
         }
     }
@@ -84,7 +84,7 @@ mod test {
             assert_eq!(joypad.read(), 1);
             assert_eq!(joypad.read(), 0);
 
-            for x in 0..10 {
+            for _x in 0..10 {
                 assert_eq!(joypad.read(), 1);
             }
             joypad.write(1);

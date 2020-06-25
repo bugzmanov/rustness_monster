@@ -2,9 +2,9 @@ use rustness::bus::bus::Bus;
 use rustness::cpu::cpu::CPU;
 use rustness::cpu::mem::Mem;
 use rustness::input;
-use rustness::ppu::ppu;
 use rustness::ppu::ppu::NesPPU;
 use rustness::rom::ines::Rom;
+use rustness::screen::render;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -30,7 +30,6 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-
     let mut file = File::open("test_rom/ice_climber.nes").unwrap();
     // let mut file = File::open("test_rom/super.ness").unwrap();
     // let mut file = File::open("test_rom/excitebike.nes").unwrap();
@@ -54,11 +53,10 @@ fn main() {
         .unwrap();
 
     let joystick_system = sdl_context.joystick().unwrap();
-    // println!("{}", joystick_system.device_guid(0).unwrap());
-    if joystick_system.num_joysticks().unwrap() > 0 {
-        let joystick = joystick_system.open(0).unwrap();
-        joystick_system.set_event_state(true);
-    }
+
+    //ignore failure - means no joystick is attached
+    let _joystick = joystick_system.open(0);
+    joystick_system.set_event_state(true);
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     canvas.present();
@@ -113,7 +111,6 @@ fn main() {
                         8 => joypad.set_button_pressed_status(input::JoypadButton::SELECT, true),
                         _ => panic!("shouldn't happen"),
                     }
-                    // println!("{}", button_idx);
                 }
                 Event::JoyButtonUp {
                     timestamp: _,
@@ -128,8 +125,7 @@ fn main() {
                 },
                 Event::JoyAxisMotion {
                     timestamp: _,
-                    /// The joystick's `id`
-                    which: _,
+                        which: _,
                     axis_idx,
                     value,
                 } => {
@@ -156,13 +152,12 @@ fn main() {
                         }
                         _ => { /* do nothing*/ }
                     }
-                    println!("{} {}", axis_idx, value);
                 }
                 _ => {}
             }
         }
 
-        let frame = ppu::render(z);
+        let frame = render::render(z);
         texture.update(None, &frame.data, 256 * 3).unwrap();
         canvas.clear();
 
@@ -196,9 +191,8 @@ fn main() {
     let trace_rc2 = trace.clone();
     cpu.interpret_fn(0xffff, |cpu| {
         if *trace_rc2.borrow() {
-            ::std::thread::sleep(Duration::new(0, 10000));
-
-            // println!("{}", rustness::cpu::trace(cpu));
+            // ::std::thread::sleep(Duration::new(0, 10000));
+            println!("{}", rustness::cpu::trace(cpu));
         }
     });
 }

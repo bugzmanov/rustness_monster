@@ -1,4 +1,3 @@
-use crate::bus::bus::CpuBus;
 use crate::cpu::cpu::CPU;
 
 const ZERO_PAGE: u16 = 0x0;

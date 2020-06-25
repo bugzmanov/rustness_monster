@@ -36,11 +36,16 @@ use std::rc::Rc;
 // | Zero Page     |       |               |
 // |_______________| $0000 |_______________|
 //
+#[allow(dead_code)]
 const ZERO_PAGE: u16 = 0x0;
+#[allow(dead_code)]
 const STACK: u16 = 0x0100;
+#[allow(dead_code)]
 const RAM: u16 = 0x0200;
 const RAM_MIRRORS: u16 = 0x0800;
+#[allow(dead_code)]
 const RAM_MIRRORS_END: u16 = 0x1FFF;
+#[allow(dead_code)]
 const IO_REGISTERS: u16 = 0x2000;
 const IO_MIRRORS: u16 = 0x2008;
 const IO_MIRRORS_END: u16 = 0x3FFF;
@@ -55,7 +60,6 @@ pub struct Bus<'call, T: PPU + 'call> {
     ppu: T,
     interrupt_fn: Box<dyn FnMut(&T, &mut input::Joypad) + 'call>,
     joypad1: input::Joypad,
-    joypad2: input::Joypad,
 }
 
 fn map_mirrors(pos: u16) -> u16 {
@@ -82,7 +86,6 @@ impl<'a, T: PPU> Bus<'a, T> {
             ppu: NesPPU::new(chr_rom_copy, mirroring),
             interrupt_fn: Box::from(interrupt_fn),
             joypad1: input::Joypad::new(),
-            joypad2: input::Joypad::new(),
         }
     }
 
@@ -191,7 +194,7 @@ impl<'a, T: PPU> Bus<'a, T> {
 
             0x4016 => self.joypad1.read(),
 
-            0x4017 => 0,//self.joypad2.read(),
+            0x4017 => 0, //self.joypad2.read(),
 
             //todo 0x4000 - 0x8000
             PRG_ROM..=PRG_ROM_END => self.read_prg_rom(pos),
@@ -259,7 +262,7 @@ impl CpuBus for Bus<'_, NesPPU> {
 
     fn tick(&mut self, cycles: u8) {
         let nmi_before = self.nmi_interrupt.is_some();
-        let render = Bus::<NesPPU>::tick(self, cycles as u16);
+        let _render = Bus::<NesPPU>::tick(self, cycles as u16);
         let nmi_after = self.nmi_interrupt.is_some();
         if !nmi_before && nmi_after {
             (self.interrupt_fn)(&self.ppu, &mut self.joypad1);
@@ -376,7 +379,6 @@ mod test {
             ppu: test::stub_ppu(),
             interrupt_fn: Box::from(func),
             joypad1: input::Joypad::new(),
-            joypad2: input::Joypad::new(),
         }
     }
 
