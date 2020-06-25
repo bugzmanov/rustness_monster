@@ -1,7 +1,7 @@
 use super::frame::Frame;
 use super::pallete;
 use crate::ppu::ppu::NesPPU;
-use crate::rom::ines::Mirroring;
+use crate::rom::Mirroring;
 
 pub trait Renderer {
     fn render(ppu: &NesPPU) -> Frame;

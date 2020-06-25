@@ -1,9 +1,9 @@
-use rustness::bus::bus::Bus;
+use rustness::bus::Bus;
 use rustness::cpu::cpu::CPU;
 use rustness::cpu::mem::Mem;
 use rustness::input;
 use rustness::ppu::ppu::NesPPU;
-use rustness::rom::ines::Rom;
+use rustness::rom::Rom;
 use rustness::screen::render;
 
 use sdl2::event::Event;

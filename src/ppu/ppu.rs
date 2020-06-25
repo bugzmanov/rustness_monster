@@ -3,7 +3,7 @@
 use crate::ppu::registers::control::ControlRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::status::StatusRegister;
-use crate::rom::ines::Mirroring;
+use crate::rom::Mirroring;
 
 pub struct NesPPU {
     pub chr_rom: Vec<u8>,

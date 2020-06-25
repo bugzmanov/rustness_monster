@@ -1,6 +1,6 @@
 // https://skilldrick.github.io/easy6502/
 // http://nesdev.com/6502_cpu.txt
-use crate::bus::bus::CpuBus;
+use crate::bus::CpuBus;
 use crate::cpu::mem::AddressingMode;
 use crate::cpu::opscode;
 use hex;
