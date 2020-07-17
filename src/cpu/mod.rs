@@ -163,7 +163,7 @@ pub fn trace(cpu: &mut CPU) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::bus::bus::MockBus;
+    use crate::bus::MockBus;
 
     #[test]
     fn test_format_trace() {

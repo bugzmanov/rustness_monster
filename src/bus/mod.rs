@@ -367,7 +367,7 @@ mod test {
     use super::*;
     use crate::ppu::ppu::test;
     use crate::ppu::ppu::test::MockPPU;
-    use crate::rom::ines::test_ines_rom;
+    use crate::rom::test_ines_rom;
 
     fn stub_bus() -> Bus<'static, MockPPU> {
         let func = |_: &MockPPU, _: &mut input::Joypad| {};

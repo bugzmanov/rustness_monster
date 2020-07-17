@@ -9,7 +9,7 @@ use sdl2::rect::Rect;
 use std::time::Duration;
 use std::time::SystemTime;
 
-use rustness::rom::ines::Rom;
+use rustness::rom::Rom;
 use std::fs::File;
 use std::io::Read;
 

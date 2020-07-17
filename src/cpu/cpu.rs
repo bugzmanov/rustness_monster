@@ -962,8 +962,8 @@ impl<'a> CPU<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::bus::bus::DynamicBusWrapper;
-    use crate::bus::bus::MockBus;
+    use crate::bus::DynamicBusWrapper;
+    use crate::bus::MockBus;
     use std::cell::RefCell;
     use std::rc::Rc;
 
