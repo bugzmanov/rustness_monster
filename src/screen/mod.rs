@@ -1,3 +1,3 @@
 pub mod frame;
-pub mod pallete;
+pub mod palette;
 pub mod render;

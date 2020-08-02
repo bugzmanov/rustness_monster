@@ -288,6 +288,8 @@ impl PPU for NesPPU {
         if self.cycles >= 341 {
             if self.has_sprite_hit(self.cycles) {
                 self.status.set_sprite_zero_hit(true);
+            } else {
+                self.status.set_sprite_zero_hit(false);
             }
 
             self.cycles = self.cycles - 341;
@@ -305,7 +307,6 @@ impl PPU for NesPPU {
                 self.line = 0;
                 self.nmi_interrupt = None;
                 self.status.set_sprite_zero_hit(false);
-                // self.status.
                 self.status.reset_vblank_status();
                 return true;
             }

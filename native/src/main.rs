@@ -5,6 +5,7 @@ use rustness::input;
 use rustness::ppu::ppu::NesPPU;
 use rustness::rom::Rom;
 use rustness::screen::render;
+use rustness::screen::frame::Frame;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -73,6 +74,8 @@ fn main() {
     let trace = Rc::from(RefCell::from(false));
 
     let trace_rc = trace.clone();
+
+    let mut frame = Frame::new();
     let func = move |z: &NesPPU, joypad: &mut input::Joypad| {
         for event in event_pump.poll_iter() {
             match event {
@@ -157,7 +160,7 @@ fn main() {
             }
         }
 
-        let frame = render::render(z);
+        render::render(z, &mut frame);
         texture.update(None, &frame.data, 256 * 3).unwrap();
         canvas.clear();
 
