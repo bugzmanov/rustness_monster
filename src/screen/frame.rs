@@ -21,4 +21,8 @@ impl Frame {
             self.data[base + 2] = rgb.2;
         }
     }
+
+    pub fn clear(&mut self) {
+        self.data = vec![0; (Frame::WIDTH) * (Frame::HIGHT) * 3];
+    }
 }

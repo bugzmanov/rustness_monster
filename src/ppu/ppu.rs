@@ -4,6 +4,9 @@ use crate::ppu::registers::control::ControlRegister;
 use crate::ppu::registers::mask::MaskRegister;
 use crate::ppu::registers::status::StatusRegister;
 use crate::rom::Mirroring;
+use crate::screen::frame::Frame;
+use crate::screen::render;
+use std::cell::RefCell;
 
 pub struct NesPPU {
     pub chr_rom: Vec<u8>,
@@ -21,6 +24,10 @@ pub struct NesPPU {
     nmi_interrupt: Option<u8>,
     pub palette_table: [u8; 32],
     read_data_buf: u8,
+
+    pub frame: RefCell<Frame>,
+
+    pub sprite_zero_pixels: Vec<(u8, u8)>
 }
 
 pub struct Addr {
@@ -134,6 +141,8 @@ impl NesPPU {
             nmi_interrupt: None,
             palette_table: [0; 32],
             read_data_buf: 0,
+            frame: RefCell::from(Frame::new()),
+            sprite_zero_pixels: vec!(),
         }
     }
 
@@ -170,8 +179,10 @@ impl NesPPU {
         let y = self.oam_data[0] as usize;
         let x = self.oam_data[3] as usize;
         // (y == self.line) && self.registers.is_sprite_enable()
-        (y == self.line) && x <= cycle && self.mask.show_sprites()
+        (y+5 == self.line) && x <= cycle && self.mask.show_sprites()
     }
+
+
 }
 
 impl PPU for NesPPU {
@@ -234,7 +245,6 @@ impl PPU for NesPPU {
                 self.palette_table[(add_mirror - 0x3f00) as usize] = value;
             }
             0x3f00..=0x3fff =>
-            /* todo: implement working with palette */
             {
                 self.palette_table[(addr - 0x3f00) as usize] = value;
             }
@@ -268,7 +278,6 @@ impl PPU for NesPPU {
             }
 
             0x3f00..=0x3fff =>
-            /* todo: implement working with palette */
             {
                 self.palette_table[(addr - 0x3f00) as usize]
             }
@@ -288,14 +297,20 @@ impl PPU for NesPPU {
         if self.cycles >= 341 {
             if self.has_sprite_hit(self.cycles) {
                 self.status.set_sprite_zero_hit(true);
-            } else {
-                self.status.set_sprite_zero_hit(false);
             }
+            // } else {
+            //     self.status.set_sprite_zero_hit(false);
+            // }
 
             self.cycles = self.cycles - 341;
             self.line += 1;
 
+            if(self.line < 241) {
+                render::render_bg_scanline(&self, self.line, &mut self.frame.borrow_mut());
+            }
+
             if self.line == 241 {
+                render::render_sprites(self, &mut self.frame.borrow_mut());
                 self.status.set_vblank_status(true);
                 self.status.set_sprite_zero_hit(false);
                 if self.ctrl.generate_vblank_nmi() {
@@ -304,6 +319,7 @@ impl PPU for NesPPU {
             }
 
             if self.line >= 262 {
+                // self.frame.borrow_mut().clear();
                 self.line = 0;
                 self.nmi_interrupt = None;
                 self.status.set_sprite_zero_hit(false);
@@ -313,6 +329,8 @@ impl PPU for NesPPU {
         }
         return false;
     }
+
+
 
     fn poll_nmi_interrupt(&mut self) -> Option<u8> {
         self.nmi_interrupt.take()

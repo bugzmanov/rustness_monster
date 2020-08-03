@@ -31,8 +31,8 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-    let mut file = File::open("test_rom/ice_climber.nes").unwrap();
-    // let mut file = File::open("test_rom/super.ness").unwrap();
+    // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
+    let mut file = File::open("test_rom/super.ness").unwrap();
     // let mut file = File::open("test_rom/excitebike.nes").unwrap();
     // let mut file = File::open("test_rom/battle_city.nes").unwrap();
     // let mut file = File::open("test_rom/popeye.nes").unwrap();
@@ -160,8 +160,8 @@ fn main() {
             }
         }
 
-        render::render(z, &mut frame);
-        texture.update(None, &frame.data, 256 * 3).unwrap();
+        // render::render(z, &mut frame);
+        texture.update(None, &z.frame.borrow().data, 256 * 3).unwrap();
         canvas.clear();
 
         canvas

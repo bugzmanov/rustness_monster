@@ -131,8 +131,8 @@ impl<'a, T: PPU> Bus<'a, T> {
                 self.ppu.write_oam_dma(&buffer);
 
                 // todo: handle this eventually
-                let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
-                self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
+                // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
+                // self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
             }
 
             IO_MIRRORS..=IO_MIRRORS_END => {
