@@ -19,6 +19,7 @@ use std::time::SystemTime;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::env;
 
 fn main() {
     let mut key_map = HashMap::new();
@@ -31,15 +32,7 @@ fn main() {
     key_map.insert(Keycode::A, input::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::S, input::JoypadButton::BUTTON_B);
 
-    // let mut file = File::open("test_rom/ice_climber.nes").unwrap();
-    let mut file = File::open("test_rom/super.ness").unwrap();
-    // let mut file = File::open("test_rom/excitebike.nes").unwrap();
-    // let mut file = File::open("test_rom/battle_city.nes").unwrap();
-    // let mut file = File::open("test_rom/popeye.nes").unwrap();
-    // let mut file = File::open("test_rom/balloon_fight.nes").unwrap();
-    // let mut file = File::open("test_rom/pacman.nes").unwrap();
-    // let mut file = File::open("test_rom/donkey_kong.nes").unwrap();
-    // let mut file = File::open("test_rom/nestest.nes").unwrap();
+    let mut file = File::open(dbg!(env::args().collect::<Vec<String>>()).get(1).unwrap()).unwrap();
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
 
@@ -57,6 +50,11 @@ fn main() {
 
     //ignore failure - means no joystick is attached
     let _joystick = joystick_system.open(0);
+    match _joystick {
+        Err(_) => println!("Keyboard is used as a controller: arrows + a + s + enter + space"),
+        Ok(_) => println!("Joystick is used as a controller")
+    }
+
     joystick_system.set_event_state(true);
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
@@ -75,7 +73,7 @@ fn main() {
 
     let trace_rc = trace.clone();
 
-    let mut frame = Frame::new();
+    let frame = Frame::new();
     let func = move |z: &NesPPU, joypad: &mut input::Joypad| {
         for event in event_pump.poll_iter() {
             match event {
