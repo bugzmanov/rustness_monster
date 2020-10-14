@@ -22,7 +22,7 @@ I've tried it with:
 
 I also wrote a mini ebook on this topic. Check it out.
 <!-- <p align="center"> -->
-<a target="_blank" href="https://bugzmanov.github.io/nes_ebook/index.html"><img src="https://bugzmanov.github.io/nes_ebook/images/intro.png" width="20%"/>
+<a target="_blank" href="https://bugzmanov.github.io/nes_ebook/index.html"><img src="https://bugzmanov.github.io/nes_ebook/images/intro.png" width="20%"/> </a>
 <!-- </p> -->
 
 ## Running instructions
