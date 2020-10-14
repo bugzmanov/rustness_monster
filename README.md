@@ -41,8 +41,24 @@ git clone git@github.com:bugzmanov/rustness_monster.git
 ```
 
 Linux:
-1) install sdl2: http://lazyfoo.net/tutorials/SDL/01_hello_SDL/linux/index.php
+1) install [sdl2](http://lazyfoo.net/tutorials/SDL/01_hello_SDL/linux/index.php)
 2) Clone repo
+```
+git clone git@github.com:bugzmanov/rustness_monster.git
+```
+
+Windows via WSL2:
+1) install [sdl2](http://lazyfoo.net/tutorials/SDL/01_hello_SDL/linux/index.php) to linux
+2) Clone repo to linux
+```
+git clone git@github.com:bugzmanov/rustness_monster.git
+```
+3) Install any modern x11 server to windows e.g. [VcXsrv](https://sourceforge.net/projects/vcxsrv/). Note that old versions of Xming won't work because of outdated OpenGL support.
+4) Run the following commands (change DISPLAY variable to your X11 server parameters)
+```
+export LIBGL_ALWAYS_INDIRECT=1
+export DISPLAY=192.168.0.5:0.0
+```
 
 ### Running the game
 
