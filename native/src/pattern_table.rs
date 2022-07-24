@@ -1,7 +1,7 @@
 extern crate sdl2;
 
 use rustness::screen::frame;
-use rustness::screen::pallete;
+use rustness::screen::palette;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -117,10 +117,10 @@ pub fn main() {
                     upper = upper >> 1;
                     lower = lower >> 1;
                     let rgb = match value {
-                        0 => pallete::YUV[0x01],
-                        1 => pallete::YUV[0x23],
-                        2 => pallete::YUV[0x27],
-                        3 => pallete::YUV[0x2b],
+                        0 => palette::SYSTEM_PALETTE[0x01],
+                        1 => palette::SYSTEM_PALETTE[0x23],
+                        2 => palette::SYSTEM_PALETTE[0x27],
+                        3 => palette::SYSTEM_PALETTE[0x2b],
                         _ => panic!("can't be"),
                     };
                     frame.set_pixel(tile_x + x, tile_y + y, rgb)
