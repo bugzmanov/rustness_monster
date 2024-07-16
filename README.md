@@ -47,6 +47,18 @@ Linux:
 git clone git@github.com:bugzmanov/rustness_monster.git
 ```
 
+Windows
+
+1) install sdl2: Download `SDL2-devel-<version>-VC.zip` from releases page of [SDL](https://github.com/libsdl-org/SDL)
+ and extract all files to the library directory for Rust toolchain. For Windows on x86_64 platform, the directory is usually
+```
+C:\Users\<username>\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib
+```
+2) Clone repo
+```
+git clone git@github.com:bugzmanov/rustness_monster.git
+```
+
 Windows via WSL2:
 1) install [sdl2](http://lazyfoo.net/tutorials/SDL/01_hello_SDL/linux/index.php) to linux
 2) Clone repo to linux
